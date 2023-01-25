@@ -12,10 +12,11 @@ ui.mainscreen=MainScreen_Init(ui)
 ui.devscreen=DeviceScreen_Init(ui)
 
 ui.statusbar=function(self, text)
-local Term
+local Term, len
 
 Term=self.Term
 Term:move(0, Term:height() -1)
+text=terminal.strtrunc(text, Term:width())
 Term:puts(text.."~>~0")
 Term:flush()
 end

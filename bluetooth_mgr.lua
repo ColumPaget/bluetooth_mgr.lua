@@ -105,6 +105,7 @@ end
 function BTInit()
 local bt={}
 
+bt.reload_devices=true
 bt.S=stream.STREAM("cmd:bluetoothctl","rw timeout=5")
 bt.S:timeout(10)
 
@@ -316,8 +317,11 @@ do
 		if tok=="Device"
 		then 
 		dev=self:parsedev(toks) 
-		bt:getdevinfo(dev)
-		elseif tok=="Controller" then controllers:parse_state(toks)
+		if dev ~= nil
+		then
+			bt:getdevinfo(dev)
+			elseif tok=="Controller" then dev:parse_state(toks)
+		end
 		end
 	end
 tok=toks:next()
@@ -681,7 +685,7 @@ end
 
 
 screen.title=function(self)
-local addr, dev, count, controller, str
+local addr, dev, count, controller, str, len
 
 controller,count=controllers:curr()
 
@@ -712,7 +716,13 @@ elseif menuchoice == "stop-scan" then self.Term:puts("stop scanning for devices 
 elseif menuchoice == "poweroff" then self.Term:puts("power down bluetooth controller ~>~0")
 else
   dev=GetDevice(menuchoice)
-  if dev ~= nil and dev.name ~= nil then self.Term:puts("[" .. dev.name .. "] Supports: " .. dev.uuids .. "~>~0") end
+  
+  if dev ~= nil and dev.name ~= nil
+  then
+	str="[" .. dev.name .. "] Supports: " .. string.sub(dev.uuids, 1, len) .. "~>~0"
+	str=terminal.strtrunc(str, Term:width())
+	self.Term:puts(str)
+  end
 end
 
 end
@@ -884,10 +894,11 @@ ui.mainscreen=MainScreen_Init(ui)
 ui.devscreen=DeviceScreen_Init(ui)
 
 ui.statusbar=function(self, text)
-local Term
+local Term, len
 
 Term=self.Term
 Term:move(0, Term:height() -1)
+text=terminal.strtrunc(text, Term:width())
 Term:puts(text.."~>~0")
 Term:flush()
 end

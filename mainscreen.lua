@@ -132,7 +132,7 @@ end
 
 
 screen.title=function(self)
-local addr, dev, count, controller, str
+local addr, dev, count, controller, str, len
 
 controller,count=controllers:curr()
 
@@ -163,7 +163,13 @@ elseif menuchoice == "stop-scan" then self.Term:puts("stop scanning for devices 
 elseif menuchoice == "poweroff" then self.Term:puts("power down bluetooth controller ~>~0")
 else
   dev=GetDevice(menuchoice)
-  if dev ~= nil and dev.name ~= nil then self.Term:puts("[" .. dev.name .. "] Supports: " .. dev.uuids .. "~>~0") end
+  
+  if dev ~= nil and dev.name ~= nil
+  then
+	str="[" .. dev.name .. "] Supports: " .. string.sub(dev.uuids, 1, len) .. "~>~0"
+	str=terminal.strtrunc(str, Term:width())
+	self.Term:puts(str)
+  end
 end
 
 end

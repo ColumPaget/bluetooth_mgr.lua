@@ -1,6 +1,7 @@
 function BTInit()
 local bt={}
 
+bt.reload_devices=true
 bt.S=stream.STREAM("cmd:bluetoothctl","rw timeout=5")
 bt.S:timeout(10)
 
@@ -212,8 +213,11 @@ do
 		if tok=="Device"
 		then 
 		dev=self:parsedev(toks) 
-		bt:getdevinfo(dev)
-		elseif tok=="Controller" then controllers:parse_state(toks)
+		if dev ~= nil
+		then
+			bt:getdevinfo(dev)
+			elseif tok=="Controller" then dev:parse_state(toks)
+		end
 		end
 	end
 tok=toks:next()
