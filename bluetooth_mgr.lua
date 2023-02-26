@@ -627,6 +627,8 @@ local addr,dev,str,controller
 local pos=0
 
 controller=controllers:curr()
+if controller ~= nil
+then
 
 pos=self.menu:curr()
 self.menu:clear()
@@ -644,6 +646,7 @@ do
 end
 
 if strutil.strlen(pos) > 0 then self.menu:setpos(pos) end
+end
 
 end
 
