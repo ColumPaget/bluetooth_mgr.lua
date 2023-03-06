@@ -104,7 +104,7 @@ self.menu:draw()
 if strutil.strlen(str) > 0
 then
 	if str=="exit" then
-	 --do nothing
+	 --do nothing, 'exit' gets passed up to a higher function
 	elseif str=="scan" then
 	 bt:startscan()
 	 self:update_menu()

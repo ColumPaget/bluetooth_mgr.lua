@@ -32,7 +32,6 @@ do
 		key=Term:getc()
 		if key=="S" then bt:startscan()
 		elseif key=="Q" then break
-		elseif key=="ESC" then break
 		else
 		str=ui:onkey(key) 
 		if str == "exit" then break end

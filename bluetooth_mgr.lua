@@ -627,8 +627,6 @@ local addr,dev,str,controller
 local pos=0
 
 controller=controllers:curr()
-if controller ~= nil
-then
 
 pos=self.menu:curr()
 self.menu:clear()
@@ -646,7 +644,6 @@ do
 end
 
 if strutil.strlen(pos) > 0 then self.menu:setpos(pos) end
-end
 
 end
 
@@ -660,7 +657,7 @@ self.menu:draw()
 if strutil.strlen(str) > 0
 then
 	if str=="exit" then
-	 --do nothing
+	 --do nothing, 'exit' gets passed up to a higher function
 	elseif str=="scan" then
 	 bt:startscan()
 	 self:update_menu()
@@ -844,8 +841,8 @@ local str
 
 if key=="ESC"
 then 
-screen:done()
-return
+	self:done()
+  return
 end
 
 
@@ -938,6 +935,7 @@ elseif key=="d" then key="ENTER"
 --translate 'left' and 'right' arrows to menu in/out
 elseif key=="LEFT" then key="ESC"
 elseif key=="RIGHT" then key="ENTER"
+elseif key=="\n" then key="ENTER"
 end
 
 
@@ -988,7 +986,6 @@ do
 		key=Term:getc()
 		if key=="S" then bt:startscan()
 		elseif key=="Q" then break
-		elseif key=="ESC" then break
 		else
 		str=ui:onkey(key) 
 		if str == "exit" then break end

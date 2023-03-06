@@ -90,8 +90,8 @@ local str
 
 if key=="ESC"
 then 
-screen:done()
-return
+	self:done()
+  return
 end
 
 

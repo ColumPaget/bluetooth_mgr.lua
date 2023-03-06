@@ -53,6 +53,7 @@ elseif key=="d" then key="ENTER"
 --translate 'left' and 'right' arrows to menu in/out
 elseif key=="LEFT" then key="ESC"
 elseif key=="RIGHT" then key="ENTER"
+elseif key=="\n" then key="ENTER"
 end
 
 
