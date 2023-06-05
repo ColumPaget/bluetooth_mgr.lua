@@ -632,9 +632,12 @@ pos=self.menu:curr()
 self.menu:clear()
 self.menu:add("Exit app", "exit")
 
+if controller ~= nil
+then
 if controller.scanning == true then self.menu:add("Stop scanning", "stop-scan") 
 else self.menu:add("Scan for devices", "scan") end
 self.menu:add("Power down controller", "poweroff")
+end
 
 bt.reload_devices=false
 
@@ -690,7 +693,7 @@ local addr, dev, count, controller, str, len
 controller,count=controllers:curr()
 
 str="~B~wBluetooth_mgr 0.1 controller:"
-if controller == nil then str=str .. "none"
+if controller == nil then str=str .. "~rNONE"
 else 
   str=str .. controller.addr .. " " 
 	if controller.powered == true then str=str.. " ~gON ~w"
