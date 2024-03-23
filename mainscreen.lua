@@ -69,9 +69,17 @@ end
 
 
 
+screen.dev_cmp_name=function(d1, d2)
+if d1.name == nil then return(true) end
+if d2.name == nil then return(false) end
+return d1.name < d2.name
+end
+
+
 screen.update_menu=function(self)
 local addr,dev,str,controller
 local pos=0
+local sorted
 
 controller=controllers:curr()
 
@@ -83,12 +91,18 @@ if controller ~= nil
 then
 if controller.scanning == true then self.menu:add("Stop scanning", "stop-scan") 
 else self.menu:add("Scan for devices", "scan") end
-self.menu:add("Power down controller", "poweroff")
+
+
+if controller.powered == true then self.menu:add("Power down controller", "poweroff")
+else self.menu:add("Power on controller", "poweron")
+end
+
 end
 
 bt.reload_devices=false
 
-for addr,dev in pairs(devices)
+sorted=make_sorted(devices, self.dev_cmp_name)
+for addr,dev in pairs(sorted)
 do
 	screen:menu_add_dev(dev)
 end
@@ -118,6 +132,9 @@ then
 	 self:update()
 	elseif str=="poweroff" then
 	 bt:poweroff()
+	 self.ui:draw()
+	elseif str=="poweroff" then
+	 bt:poweron()
 	 self.ui:draw()
 	else -- switch to device screen
 		self.ui.devscreen.device=devices[str]

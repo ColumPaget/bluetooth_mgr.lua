@@ -1,4 +1,10 @@
 
+--[[
+
+This module handles the menu for a selected device
+
+]]--
+
 function DeviceScreen_Init(ui)
 local screen={}
 
@@ -45,7 +51,10 @@ self.Term:puts("~B~wDEVICE: " .. self.device.name .. " " .. self.device.addr .. 
 end
 
 
-if self.device.paired==true then options=options.."remove" end
+if self.device.icon == "audio-output" then options=options .. "bluealsa set device," end
+
+--if self.device.paired==true then options=options.."remove" end
+options=options .. "remove" 
 
 self.Term:puts("\n" .. self.device.uuids)
 
@@ -96,6 +105,9 @@ end
 
 
 str=self.menu:onkey(key)
+
+if config.debug == true and strutil.strlen(str) > 0 then io.stderr:write("DeviceScreen: [".. str .."]\n") end
+
 if str=="back" then screen:done()
 elseif str=="remove"
 then 
@@ -121,6 +133,9 @@ elseif str=="reconnect" then
 	bt:disconnectdev(self.device)
 	process.sleep(1)
 	bt:connectdev(self.device)
+elseif str=="bluealsa" then
+	bluealsa:use(self.device)
+	ui:statusbar("~w~MALSA config file '~/.asoundrc' written~>")
 end
 
 end

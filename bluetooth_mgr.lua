@@ -5,6 +5,20 @@ require("time")
 require("process")
 
 config={}
+
+function make_sorted(input, cmp_func)
+local output={}
+local key, value
+
+for key,value in pairs(input)
+do
+  table.insert(output, value)
+end
+
+table.sort(output, cmp_func)
+
+return output
+end
 devices={}
 
 function NewDevice(addr, name)
@@ -551,6 +565,32 @@ end
 
 return controllers
 end
+bluealsa={
+
+
+use=function(self, bt_dev)
+local S, str
+
+str=process.getenv("HOME") .. "/.asoundrc"
+if config.debug == true then io.stderr:write("BLUEALSA SETUP -----------------------["..str.."]\n") end
+S=stream.STREAM(str, "w")
+if S ~= nil
+then
+str="pcm."..bt_dev.name.." {\n"
+str=str.."type plug\n"
+str=str.."slave.pcm { type bluealsa; service org.bluealsa; device \""..bt_dev.addr.."\"; profile a2dp}\n"
+str=str.."}\n\n"
+str=str.."ctl."..bt_dev.name.." {\ntype bluealsa\n}\n\n";
+str=str.."pcm.!default={type=plug; slave.pcm \""..bt_dev.name.."\"}\n"
+S:writeln(str)
+if config.debug == true then io.stderr:write(str) end
+S:close()
+if config.debug == true then io.stderr:write("BLUEALSA SETUP -----------------------\n") end
+end
+
+end
+
+}
 
 function MainScreen_Init(ui)
 local screen={}
@@ -622,9 +662,17 @@ end
 
 
 
+screen.dev_cmp_name=function(d1, d2)
+if d1.name == nil then return(true) end
+if d2.name == nil then return(false) end
+return d1.name < d2.name
+end
+
+
 screen.update_menu=function(self)
 local addr,dev,str,controller
 local pos=0
+local sorted
 
 controller=controllers:curr()
 
@@ -636,12 +684,18 @@ if controller ~= nil
 then
 if controller.scanning == true then self.menu:add("Stop scanning", "stop-scan") 
 else self.menu:add("Scan for devices", "scan") end
-self.menu:add("Power down controller", "poweroff")
+
+
+if controller.powered == true then self.menu:add("Power down controller", "poweroff")
+else self.menu:add("Power on controller", "poweron")
+end
+
 end
 
 bt.reload_devices=false
 
-for addr,dev in pairs(devices)
+sorted=make_sorted(devices, self.dev_cmp_name)
+for addr,dev in pairs(sorted)
 do
 	screen:menu_add_dev(dev)
 end
@@ -671,6 +725,9 @@ then
 	 self:update()
 	elseif str=="poweroff" then
 	 bt:poweroff()
+	 self.ui:draw()
+	elseif str=="poweroff" then
+	 bt:poweron()
 	 self.ui:draw()
 	else -- switch to device screen
 		self.ui.devscreen.device=devices[str]
@@ -753,6 +810,12 @@ return(screen)
 end
 
 
+--[[
+
+This module handles the menu for a selected device
+
+]]--
+
 function DeviceScreen_Init(ui)
 local screen={}
 
@@ -799,7 +862,10 @@ self.Term:puts("~B~wDEVICE: " .. self.device.name .. " " .. self.device.addr .. 
 end
 
 
-if self.device.paired==true then options=options.."remove" end
+if self.device.icon == "audio-output" then options=options .. "bluealsa set device," end
+
+--if self.device.paired==true then options=options.."remove" end
+options=options .. "remove" 
 
 self.Term:puts("\n" .. self.device.uuids)
 
@@ -850,6 +916,9 @@ end
 
 
 str=self.menu:onkey(key)
+
+if config.debug == true and strutil.strlen(str) > 0 then io.stderr:write("DeviceScreen: [".. str .."]\n") end
+
 if str=="back" then screen:done()
 elseif str=="remove"
 then 
@@ -875,6 +944,9 @@ elseif str=="reconnect" then
 	bt:disconnectdev(self.device)
 	process.sleep(1)
 	bt:connectdev(self.device)
+elseif str=="bluealsa" then
+	bluealsa:use(self.device)
+	ui:statusbar("~w~MALSA config file '~/.asoundrc' written~>")
 end
 
 end
