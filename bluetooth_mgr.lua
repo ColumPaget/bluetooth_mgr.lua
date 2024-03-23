@@ -5,6 +5,7 @@ require("time")
 require("process")
 
 config={}
+config.version="1.4"
 
 function make_sorted(input, cmp_func)
 local output={}
@@ -41,7 +42,7 @@ end
 
 
 
-dev.parsechange=function(self, toks)
+dev.parse_change=function(self, toks)
 local tok
 
 	tok=toks:next()
@@ -261,17 +262,17 @@ local tok, addr, dev
 
 end
 
-bt.parsechange=function(self, toks)
+bt.parse_change=function(self, toks)
 local dev
 
 tok=toks:next()
 if tok == "Device"
 then 
 	dev=GetDevice(toks:next())
-	if dev ~= nil then dev:parsechange(toks) end
+	if dev ~= nil then dev:parse_change(toks) end
 elseif tok == "Controller" then 
 	dev=controllers:find(toks:next())
-	if dev ~= nil then dev:parsechange(toks) end
+	if dev ~= nil then dev:parse_change(toks) end
 end
 
 end
@@ -305,10 +306,6 @@ end
 
 
 
-bt.parsepowerchange=function(toks)
-
-end
-
 
 bt.parse=function(self, str)
 local toks, tok, dev
@@ -319,23 +316,22 @@ tok=toks:next()
 while tok ~= nil
 do
 	if tok=="Device" then self:parsedev(toks) 
-	elseif tok=="Controller" then controllers:parse(toks)
+	elseif tok=="Controller" then controllers:parse(toks:remaining())
 	elseif tok=="Failed" then self:parsefailure(toks)
 	elseif tok=="Discovery" and toks:next() == "started" then ui:statusbar("~B~ySCANNING FOR DEVICES")
-	elseif tok=="[CHG]" then self:parsechange(toks)
+	elseif tok=="[CHG]" then self:parse_change(toks)
 	elseif tok=="[DEL]" then self:parsedelete(toks)
 	elseif tok=="[agent]" then ui:statusbar("~Y~n" .. toks:remaining())
-	elseif tok=="Changing" then self:parsepowerchange(toks)
+	elseif tok=="Changing"
+  then
+		dev=controllers:curr()
+    if dev ~= nil then dev:parse_change(toks) end
 	else
 		tok=toks:next()
 		if tok=="Device"
 		then 
 		dev=self:parsedev(toks) 
-		if dev ~= nil
-		then
-			bt:getdevinfo(dev)
-			elseif tok=="Controller" then dev:parse_state(toks)
-		end
+		if dev ~= nil then bt:getdevinfo(dev) end
 		end
 	end
 tok=toks:next()
@@ -364,8 +360,26 @@ bt.handle_input=function(self)
 local str 
 
 str=bt:readln()
-strutil.trim(str)
 bt:parse(str)
+
+return str
+end
+
+
+
+-- consume input until we hit an 'endstr' or we timeout
+bt.consume_input=function(self, endstr, debug_prefix)
+local str
+
+str=bt:handle_input()
+while strutil.strlen(str) > 0
+do
+	if config.debug == true then io.stderr:write(debug_prefix .. str .. "\n") end
+	if strutil.strlen(endstr) > 0 and str == endstr then break end
+	str=bt:handle_input()
+end
+
+
 end
 
 
@@ -392,7 +406,6 @@ self:parse_device_info()
 end
 
 
-
 return(bt)
 end
 
@@ -409,7 +422,7 @@ function NewController(addr)
 dev={}
 dev.addr=addr
 dev.active=false
-
+dev.powered=false
 
 dev.parse_state_item=function(self, toks)
 local tok
@@ -417,6 +430,7 @@ local tok
 if config.debug == true then io.stderr:write("controller:parse_state_item: ".. toks:remaining().."\n") end
 
 tok=toks:next()
+io.stderr:write("TOK: [".. tok.."]\n")
 
 if tok=="Discovering:"
 then
@@ -424,20 +438,27 @@ then
 	if tok == "yes" then self.scanning=true
 	else self.scanning=false
 	end
-elseif tok=="Powered:"
-then
-	tok=toks:next()
-	if tok == "yes" then self.powered=true
-	else self.powered=false
-	end
 elseif tok=="Discoverable:"
 then
 	tok=toks:next()
 	if tok == "yes" then self.discoverable=true
 	else self.discoverable=false
 	end
+elseif tok=="Changing"
+then
+	tok=toks:remaining()
+	if tok == "power on succeeded" then self.powered=true
+	elseif tok == "power off succeeded" then self.powered=false
+	end
+io.stderr:write("Changing powered: " .. self.addr .. " " ..tostring(self.powered) .."\n")
+elseif tok=="Powered:"
+then
+	tok=toks:next()
+	if tok == "yes" then self.powered=true
+	else self.powered=false
+io.stderr:write("Changing powered: " .. self.addr .. " " ..tostring(self.powered) .."\n")
+	end
 end
-
 end
 
 -- functions start here
@@ -454,7 +475,7 @@ end
 end
 
 
-dev.parsechange=function(self, toks)
+dev.parse_change=function(self, toks)
 self:parse_state_item(toks)
 ui:draw()
 end
@@ -488,10 +509,7 @@ local dev={}
 local toks, tok, str
 
 toks=strutil.TOKENIZER( strutil.trim(line), "\\S")
-str=toks:next()
-if str == "Controller"
-then
-	dev=NewController(toks:next())
+dev=NewController(toks:next())
 
 	tok=toks:next()
 	while tok
@@ -503,8 +521,6 @@ then
 	if self.items[dev.addr] == nil then self.items[dev.addr]=dev end
 
 	if dev.active == true then dev:get_state() end
-end
-
 end
 
 
@@ -538,28 +554,22 @@ end
 
 
 controllers.load=function(self)
-local str
-
 bt:send("list")
-
-str=bt:readln()
-while strutil.strlen(str) > 0
-do
-	if config.debug == true then io.stderr:write("controller:" .. str .. "\n") end
-	self:parse(str)
-	str=bt:readln()
+bt:consume_input("", "controller:")
 end
 
-
-end
 
 
 controllers.poweron=function(self)
 bt:send("power on")
+bt:consume_input("Changing power on succeeded", "controller:")
+controllers:load()
+bt:getdevs()
 end
 
-bt.poweroff=function(self)
+controllers.poweroff=function(self)
 bt:send("power off")
+bt:consume_input("Changing power off succeeded", "controller:")
 end
 
 
@@ -569,19 +579,20 @@ bluealsa={
 
 
 use=function(self, bt_dev)
-local S, str
+local S, str, name
 
+name=string.gsub(bt_dev.name, " ", "_")
 str=process.getenv("HOME") .. "/.asoundrc"
 if config.debug == true then io.stderr:write("BLUEALSA SETUP -----------------------["..str.."]\n") end
 S=stream.STREAM(str, "w")
 if S ~= nil
 then
-str="pcm."..bt_dev.name.." {\n"
+str="pcm."..name.." {\n"
 str=str.."type plug\n"
 str=str.."slave.pcm { type bluealsa; service org.bluealsa; device \""..bt_dev.addr.."\"; profile a2dp}\n"
 str=str.."}\n\n"
-str=str.."ctl."..bt_dev.name.." {\ntype bluealsa\n}\n\n";
-str=str.."pcm.!default={type=plug; slave.pcm \""..bt_dev.name.."\"}\n"
+str=str.."ctl."..name.." {\ntype bluealsa\n}\n\n";
+str=str.."pcm.!default {type plug; slave.pcm \""..name.."\"}\n"
 S:writeln(str)
 if config.debug == true then io.stderr:write(str) end
 S:close()
@@ -724,10 +735,10 @@ then
 	 self:update_menu()
 	 self:update()
 	elseif str=="poweroff" then
-	 bt:poweroff()
+	 controllers:poweroff()
 	 self.ui:draw()
-	elseif str=="poweroff" then
-	 bt:poweron()
+	elseif str=="poweron" then
+	 controllers:poweron()
 	 self.ui:draw()
 	else -- switch to device screen
 		self.ui.devscreen.device=devices[str]
@@ -749,13 +760,15 @@ local addr, dev, count, controller, str, len
 
 controller,count=controllers:curr()
 
-str="~B~wBluetooth_mgr 0.1 controller:"
+str="~B~wBluetooth_mgr-"..config.version.." controller:"
 if controller == nil then str=str .. "~rNONE"
 else 
   str=str .. controller.addr .. " " 
 	if controller.powered == true then str=str.. " ~gON ~w"
 	elseif controller.powered == false then  str=str.. " ~rOFF~w"
 	end
+
+io.stderr:write("TITLE: ".. tostring(controller.powered).." "..str.."\n")
 
 	str=str ..  "  (" .. tostring(count).." in total)"
   if controller.scanning==true then str=str.." ~rscanning~w" end
@@ -774,6 +787,7 @@ if menuchoice == "exit" then self.Term:puts("exit bluetooth_mgr ~>~0")
 elseif menuchoice == "scan" then self.Term:puts("scan for devices in the local area ~>~0")
 elseif menuchoice == "stop-scan" then self.Term:puts("stop scanning for devices ~>~0")
 elseif menuchoice == "poweroff" then self.Term:puts("power down bluetooth controller ~>~0")
+elseif menuchoice == "poweron" then self.Term:puts("power on bluetooth controller ~>~0")
 else
   dev=GetDevice(menuchoice)
   
@@ -1045,8 +1059,6 @@ poll:add(bt.S)
 
 Term:puts("~R~wBluetooth_mgr 0.1   LOADING DEVICES~>~0\r")
 controllers:poweron()
-controllers:load()
-bt:getdevs()
 
 
 while true

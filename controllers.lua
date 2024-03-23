@@ -9,10 +9,7 @@ local dev={}
 local toks, tok, str
 
 toks=strutil.TOKENIZER( strutil.trim(line), "\\S")
-str=toks:next()
-if str == "Controller"
-then
-	dev=NewController(toks:next())
+dev=NewController(toks:next())
 
 	tok=toks:next()
 	while tok
@@ -24,8 +21,6 @@ then
 	if self.items[dev.addr] == nil then self.items[dev.addr]=dev end
 
 	if dev.active == true then dev:get_state() end
-end
-
 end
 
 
@@ -59,28 +54,22 @@ end
 
 
 controllers.load=function(self)
-local str
-
 bt:send("list")
-
-str=bt:readln()
-while strutil.strlen(str) > 0
-do
-	if config.debug == true then io.stderr:write("controller:" .. str .. "\n") end
-	self:parse(str)
-	str=bt:readln()
+bt:consume_input("", "controller:")
 end
 
-
-end
 
 
 controllers.poweron=function(self)
 bt:send("power on")
+bt:consume_input("Changing power on succeeded", "controller:")
+controllers:load()
+bt:getdevs()
 end
 
-bt.poweroff=function(self)
+controllers.poweroff=function(self)
 bt:send("power off")
+bt:consume_input("Changing power off succeeded", "controller:")
 end
 
 

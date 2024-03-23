@@ -3,7 +3,7 @@ function NewController(addr)
 dev={}
 dev.addr=addr
 dev.active=false
-
+dev.powered=false
 
 dev.parse_state_item=function(self, toks)
 local tok
@@ -11,6 +11,7 @@ local tok
 if config.debug == true then io.stderr:write("controller:parse_state_item: ".. toks:remaining().."\n") end
 
 tok=toks:next()
+io.stderr:write("TOK: [".. tok.."]\n")
 
 if tok=="Discovering:"
 then
@@ -18,20 +19,27 @@ then
 	if tok == "yes" then self.scanning=true
 	else self.scanning=false
 	end
-elseif tok=="Powered:"
-then
-	tok=toks:next()
-	if tok == "yes" then self.powered=true
-	else self.powered=false
-	end
 elseif tok=="Discoverable:"
 then
 	tok=toks:next()
 	if tok == "yes" then self.discoverable=true
 	else self.discoverable=false
 	end
+elseif tok=="Changing"
+then
+	tok=toks:remaining()
+	if tok == "power on succeeded" then self.powered=true
+	elseif tok == "power off succeeded" then self.powered=false
+	end
+io.stderr:write("Changing powered: " .. self.addr .. " " ..tostring(self.powered) .."\n")
+elseif tok=="Powered:"
+then
+	tok=toks:next()
+	if tok == "yes" then self.powered=true
+	else self.powered=false
+io.stderr:write("Changing powered: " .. self.addr .. " " ..tostring(self.powered) .."\n")
+	end
 end
-
 end
 
 -- functions start here
@@ -48,7 +56,7 @@ end
 end
 
 
-dev.parsechange=function(self, toks)
+dev.parse_change=function(self, toks)
 self:parse_state_item(toks)
 ui:draw()
 end

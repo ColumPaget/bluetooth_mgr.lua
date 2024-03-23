@@ -20,7 +20,7 @@ end
 
 
 
-dev.parsechange=function(self, toks)
+dev.parse_change=function(self, toks)
 local tok
 
 	tok=toks:next()

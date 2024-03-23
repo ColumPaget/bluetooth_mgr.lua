@@ -16,8 +16,6 @@ poll:add(bt.S)
 
 Term:puts("~R~wBluetooth_mgr 0.1   LOADING DEVICES~>~0\r")
 controllers:poweron()
-controllers:load()
-bt:getdevs()
 
 
 while true

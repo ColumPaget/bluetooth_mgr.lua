@@ -143,17 +143,17 @@ local tok, addr, dev
 
 end
 
-bt.parsechange=function(self, toks)
+bt.parse_change=function(self, toks)
 local dev
 
 tok=toks:next()
 if tok == "Device"
 then 
 	dev=GetDevice(toks:next())
-	if dev ~= nil then dev:parsechange(toks) end
+	if dev ~= nil then dev:parse_change(toks) end
 elseif tok == "Controller" then 
 	dev=controllers:find(toks:next())
-	if dev ~= nil then dev:parsechange(toks) end
+	if dev ~= nil then dev:parse_change(toks) end
 end
 
 end
@@ -187,10 +187,6 @@ end
 
 
 
-bt.parsepowerchange=function(toks)
-
-end
-
 
 bt.parse=function(self, str)
 local toks, tok, dev
@@ -201,23 +197,22 @@ tok=toks:next()
 while tok ~= nil
 do
 	if tok=="Device" then self:parsedev(toks) 
-	elseif tok=="Controller" then controllers:parse(toks)
+	elseif tok=="Controller" then controllers:parse(toks:remaining())
 	elseif tok=="Failed" then self:parsefailure(toks)
 	elseif tok=="Discovery" and toks:next() == "started" then ui:statusbar("~B~ySCANNING FOR DEVICES")
-	elseif tok=="[CHG]" then self:parsechange(toks)
+	elseif tok=="[CHG]" then self:parse_change(toks)
 	elseif tok=="[DEL]" then self:parsedelete(toks)
 	elseif tok=="[agent]" then ui:statusbar("~Y~n" .. toks:remaining())
-	elseif tok=="Changing" then self:parsepowerchange(toks)
+	elseif tok=="Changing"
+  then
+		dev=controllers:curr()
+    if dev ~= nil then dev:parse_change(toks) end
 	else
 		tok=toks:next()
 		if tok=="Device"
 		then 
 		dev=self:parsedev(toks) 
-		if dev ~= nil
-		then
-			bt:getdevinfo(dev)
-			elseif tok=="Controller" then dev:parse_state(toks)
-		end
+		if dev ~= nil then bt:getdevinfo(dev) end
 		end
 	end
 tok=toks:next()
@@ -246,8 +241,26 @@ bt.handle_input=function(self)
 local str 
 
 str=bt:readln()
-strutil.trim(str)
 bt:parse(str)
+
+return str
+end
+
+
+
+-- consume input until we hit an 'endstr' or we timeout
+bt.consume_input=function(self, endstr, debug_prefix)
+local str
+
+str=bt:handle_input()
+while strutil.strlen(str) > 0
+do
+	if config.debug == true then io.stderr:write(debug_prefix .. str .. "\n") end
+	if strutil.strlen(endstr) > 0 and str == endstr then break end
+	str=bt:handle_input()
+end
+
+
 end
 
 
@@ -272,7 +285,6 @@ self:send("info "..addr)
 end
 self:parse_device_info()
 end
-
 
 
 return(bt)

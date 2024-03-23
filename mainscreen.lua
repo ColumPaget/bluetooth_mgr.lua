@@ -131,10 +131,10 @@ then
 	 self:update_menu()
 	 self:update()
 	elseif str=="poweroff" then
-	 bt:poweroff()
+	 controllers:poweroff()
 	 self.ui:draw()
-	elseif str=="poweroff" then
-	 bt:poweron()
+	elseif str=="poweron" then
+	 controllers:poweron()
 	 self.ui:draw()
 	else -- switch to device screen
 		self.ui.devscreen.device=devices[str]
@@ -156,13 +156,15 @@ local addr, dev, count, controller, str, len
 
 controller,count=controllers:curr()
 
-str="~B~wBluetooth_mgr 0.1 controller:"
+str="~B~wBluetooth_mgr-"..config.version.." controller:"
 if controller == nil then str=str .. "~rNONE"
 else 
   str=str .. controller.addr .. " " 
 	if controller.powered == true then str=str.. " ~gON ~w"
 	elseif controller.powered == false then  str=str.. " ~rOFF~w"
 	end
+
+io.stderr:write("TITLE: ".. tostring(controller.powered).." "..str.."\n")
 
 	str=str ..  "  (" .. tostring(count).." in total)"
   if controller.scanning==true then str=str.." ~rscanning~w" end
@@ -181,6 +183,7 @@ if menuchoice == "exit" then self.Term:puts("exit bluetooth_mgr ~>~0")
 elseif menuchoice == "scan" then self.Term:puts("scan for devices in the local area ~>~0")
 elseif menuchoice == "stop-scan" then self.Term:puts("stop scanning for devices ~>~0")
 elseif menuchoice == "poweroff" then self.Term:puts("power down bluetooth controller ~>~0")
+elseif menuchoice == "poweron" then self.Term:puts("power on bluetooth controller ~>~0")
 else
   dev=GetDevice(menuchoice)
   
