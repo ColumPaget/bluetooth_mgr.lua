@@ -51,7 +51,7 @@ self.Term:puts("~B~wDEVICE: " .. self.device.name .. " " .. self.device.addr .. 
 end
 
 
-if self.device.icon == "audio-output" then options=options .. "bluealsa set device," end
+if self.device.audio_output == true then options=options .. "bluealsa set device," end
 
 --if self.device.paired==true then options=options.."remove" end
 options=options .. "remove" 

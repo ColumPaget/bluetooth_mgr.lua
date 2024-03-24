@@ -5,7 +5,7 @@ require("time")
 require("process")
 
 config={}
-config.version="1.4"
+config.version="1.5"
 
 function make_sorted(input, cmp_func)
 local output={}

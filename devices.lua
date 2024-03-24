@@ -42,25 +42,25 @@ end
 
 
 dev.finalize=function(self)
-local has_audio_sink=false 
-local has_audio_source=false
 local toks, tok
 
 if strutil.strlen(self.name) == 0 then self.name=self.addr end
+self.audio_output=false
+self.audio_input=false
 
 toks=strutil.TOKENIZER(self.uuids, ",")
 tok=toks:next()
 while tok ~= nil
 do
-if tok=="Audio Sink" then has_audio_sink=true end
-if tok=="Audio Source" then has_audio_source=true end
+if tok=="Audio Sink" then self.audio_output=true end
+if tok=="Audio Source" then self.audio_input=true end
 tok=toks:next()
 end
 
 if self.icon == "audio-card"
 then
-	if has_audio_sink ~= true then self.icon = "audio-source"
-	elseif has_audio_source ~= true then self.icon = "audio-output"
+	if self.audio_output ~= true then self.icon = "audio-source"
+	elseif self.audio_input ~= true then self.icon = "audio-output"
 	end
 end
 

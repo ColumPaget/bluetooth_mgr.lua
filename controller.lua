@@ -11,7 +11,6 @@ local tok
 if config.debug == true then io.stderr:write("controller:parse_state_item: ".. toks:remaining().."\n") end
 
 tok=toks:next()
-io.stderr:write("TOK: [".. tok.."]\n")
 
 if tok=="Discovering:"
 then

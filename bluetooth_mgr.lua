@@ -64,25 +64,25 @@ end
 
 
 dev.finalize=function(self)
-local has_audio_sink=false 
-local has_audio_source=false
 local toks, tok
 
 if strutil.strlen(self.name) == 0 then self.name=self.addr end
+self.audio_output=false
+self.audio_input=false
 
 toks=strutil.TOKENIZER(self.uuids, ",")
 tok=toks:next()
 while tok ~= nil
 do
-if tok=="Audio Sink" then has_audio_sink=true end
-if tok=="Audio Source" then has_audio_source=true end
+if tok=="Audio Sink" then self.audio_output=true end
+if tok=="Audio Source" then self.audio_input=true end
 tok=toks:next()
 end
 
 if self.icon == "audio-card"
 then
-	if has_audio_sink ~= true then self.icon = "audio-source"
-	elseif has_audio_source ~= true then self.icon = "audio-output"
+	if self.audio_output ~= true then self.icon = "audio-source"
+	elseif self.audio_input ~= true then self.icon = "audio-output"
 	end
 end
 
@@ -430,7 +430,6 @@ local tok
 if config.debug == true then io.stderr:write("controller:parse_state_item: ".. toks:remaining().."\n") end
 
 tok=toks:next()
-io.stderr:write("TOK: [".. tok.."]\n")
 
 if tok=="Discovering:"
 then
@@ -623,6 +622,8 @@ if strutil.strlen(dev.icon) > 0
 then 
 	if dev.icon == "input-keyboard" then str="keyboard"
 	elseif dev.icon == "audio-card" then str="audio"
+	elseif dev.icon == "audio-headset" then str="audio"
+	elseif dev.icon == "audio-output" then str="audio"
 	elseif dev.icon == "input-gaming" then str="gamectrl"
 	else str=dev.icon
 	end
@@ -768,8 +769,6 @@ else
 	elseif controller.powered == false then  str=str.. " ~rOFF~w"
 	end
 
-io.stderr:write("TITLE: ".. tostring(controller.powered).." "..str.."\n")
-
 	str=str ..  "  (" .. tostring(count).." in total)"
   if controller.scanning==true then str=str.." ~rscanning~w" end
 end
@@ -876,7 +875,7 @@ self.Term:puts("~B~wDEVICE: " .. self.device.name .. " " .. self.device.addr .. 
 end
 
 
-if self.device.icon == "audio-output" then options=options .. "bluealsa set device," end
+if self.device.audio_output == true then options=options .. "bluealsa set device," end
 
 --if self.device.paired==true then options=options.."remove" end
 options=options .. "remove" 

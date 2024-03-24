@@ -19,6 +19,8 @@ if strutil.strlen(dev.icon) > 0
 then 
 	if dev.icon == "input-keyboard" then str="keyboard"
 	elseif dev.icon == "audio-card" then str="audio"
+	elseif dev.icon == "audio-headset" then str="audio"
+	elseif dev.icon == "audio-output" then str="audio"
 	elseif dev.icon == "input-gaming" then str="gamectrl"
 	else str=dev.icon
 	end
@@ -163,8 +165,6 @@ else
 	if controller.powered == true then str=str.. " ~gON ~w"
 	elseif controller.powered == false then  str=str.. " ~rOFF~w"
 	end
-
-io.stderr:write("TITLE: ".. tostring(controller.powered).." "..str.."\n")
 
 	str=str ..  "  (" .. tostring(count).." in total)"
   if controller.scanning==true then str=str.." ~rscanning~w" end
