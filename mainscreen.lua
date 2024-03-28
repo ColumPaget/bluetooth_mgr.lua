@@ -8,7 +8,7 @@ screen.Term=ui.Term
 screen.menu=terminal.TERMMENU(screen.Term, 1, 2, Term:width()-2, Term:height() -6)
 
 screen.resize=function(self)
-screen.menu:resize(Term:width() -2, Term:height() -2)
+screen.menu:resize(Term:width() -2, Term:height() -6)
 end
 
 screen.add=function(self, title, dev)
@@ -214,7 +214,7 @@ end
 screen.infobox=function(self, menuchoice)
 local name, dev, str
 
-self.Term:move(0, self.Term:height() -4)
+self.Term:move(0, self.Term:height() -3)
 
 if menuchoice == "exit" then self.Term:puts("exit bluetooth_mgr ~>~0")
 elseif menuchoice == "scan" then self.Term:puts("scan for devices in the local area ~>~0")

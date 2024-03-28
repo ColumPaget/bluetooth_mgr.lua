@@ -38,9 +38,17 @@ local id
 	elseif id == "0x0007" then self.vendor="lucent"
 	elseif id == "0x0008" then self.vendor="motorola"
 	elseif id == "0x004c" then self.vendor="apple"
+	elseif id == "0x0087" then self.vendor="garmin"
 	elseif id == "0x00E0" then self.vendor="google"
 	elseif id == "0x011b" then self.vendor="hp ent."
 	elseif id == "0x013a" then self.vendor="tencent"
+	elseif id == "0x0c8c" then self.vendor="tmobile"
+	elseif id == "0x0d04" then self.vendor="bartec"
+	elseif id == "0x0d07" then self.vendor="datalogic"
+	elseif id == "0x0d08" then self.vendor="datalogic"
+	elseif id == "0x0d5b" then self.vendor="axis"
+	elseif id == "0x0d28" then self.vendor="fujitsu"
+	elseif id == "0x0bee" then self.vendor="linksys"
 	end
 end
 
