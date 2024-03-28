@@ -25,16 +25,27 @@ end
 ui.loaddevs=function(self)
 self.mainscreen:update_menu()
 --if self.state==self.state_mainscreen then self.mainscreen:update() end
-ui:draw()
+self:draw()
 end
 
+
+ui.resize=function(self)
+self.mainscreen:resize() 
+self:draw()
+end
 
 
 ui.draw=function(self)
+
+self.Term:cork()
+self.Term:clear()
 if self.state == self.state_devscreen then self.devscreen:draw()
 else self.mainscreen:draw()
 end
+
 self:statusbar("~B~wkeys: w/i/up: menu up s/k/down: menu down d/l/right/enter: select a/j/left/esc: back Q/esc: Quit mainscreen S:start scan")
+self.Term:flush()
+
 end
 
 

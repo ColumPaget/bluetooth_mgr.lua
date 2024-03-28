@@ -5,7 +5,8 @@ require("time")
 require("process")
 
 config={}
-config.version="1.4"
+config.version="1.6"
+config.show_beacons=false
 
 function make_sorted(input, cmp_func)
 local output={}
@@ -29,7 +30,11 @@ if devices[addr] ~= nil then return devices[addr] end
 
 -- functions
 dev.setname=function(self, name)
-if strutil.strlen(name) > 0 then dev.name=name end
+local str
+
+if strutil.strlen(name) == 0 then return end
+str=string.gsub(name, "-", ":")
+if strutil.strlen(name) > 0 and str ~= dev.addr then dev.name=name end
 end
 
 dev.adduuid=function(self, uuid)
@@ -42,23 +47,70 @@ end
 
 
 
+dev.parse_manufacturer_key=function(self, toks)
+local id
+
+	id=toks:next()
+	if id == "0x0000" then self.vendor="ericson"
+	elseif id == "0x0001" then self.vendor="nokia"
+	elseif id == "0x0002" then self.vendor="intel"
+	elseif id == "0x0003" then self.vendor="ibm"
+	elseif id == "0x0004" then self.vendor="toshiba"
+	elseif id == "0x0005" then self.vendor="3com"
+	elseif id == "0x0006" then self.vendor="microsoft"
+	elseif id == "0x0007" then self.vendor="lucent"
+	elseif id == "0x0008" then self.vendor="motorola"
+	elseif id == "0x004c" then self.vendor="apple"
+	elseif id == "0x00E0" then self.vendor="google"
+	elseif id == "0x011b" then self.vendor="hp ent."
+	elseif id == "0x013a" then self.vendor="tencent"
+	end
+end
+
+
+dev.parse_manufacturer=function(self, toks)
+if toks:next() == "Key:"
+then
+ self:parse_manufacturer_key(toks)
+end
+end
+
+
+dev.parse_rssi=function(self, toks)
+local str
+
+		str=toks:next()
+		if string.sub(str, 1, 2) == "0x" then str=toks:next() end
+		if string.sub(str, 1, 1) == "(" then str=string.sub(str, 2, 4) end
+		self.rssi=str
+end
+
+dev.parse_info=function(self, tok, toks)
+
+	if tok == "Name:" then self:setname(toks:remaining())
+	elseif tok == "Paired:" and toks:next() =="yes" then self.paired=true
+	elseif tok == "Trusted:" and toks:next() =="yes" then self.trusted=true
+	elseif tok == "Connected:" and toks:next() =="yes" then self.connected=true
+	elseif tok == "Icon:" then self.icon=toks:next()
+	elseif tok == "Name:" then self:setname(toks:remaining())
+	elseif tok == "UUID:" then self:adduuid(toks:remaining())
+	--old format is "MaunfacturerData Key:"
+	elseif tok == "ManufacturerData" then self:parse_manufacturer(toks)
+	--new format is "MaunfacturerData.Key:"
+	elseif tok == "ManufacturerData.Key:" then self:parse_manufacturer_key(toks)
+	elseif tok == "RSSI:" then self:parse_rssi(toks)
+  elseif tok == "Connected:" and toks:next() == "yes"
+	then
+	  bt:onconnected(self)
+	end
+end
+
 dev.parse_change=function(self, toks)
 local tok
 
 	tok=toks:next()
-	if tok == "Name:" 
-	then 
-	self.name=toks:remaining() 
+	self:parse_info(tok, toks)
 	ui:loaddevs()
-  elseif tok == "RSSI:"
-	then 
-	self.rssi=toks:next()
-	ui:loaddevs()
-	elseif tok == "Connected:" and toks:next() == "yes"
-	then
-	  bt:onconnected(self)
-	end
-
 end
 
 
@@ -66,7 +118,7 @@ end
 dev.finalize=function(self)
 local toks, tok
 
-if strutil.strlen(self.name) == 0 then self.name=self.addr end
+--if strutil.strlen(self.name) == 0 then self.name=self.addr end
 self.audio_output=false
 self.audio_input=false
 
@@ -172,7 +224,7 @@ end
 
 
 bt.parse_device_info=function(self)
-local str, CurrDev, toks, tok, name
+local str, dev, toks, tok, name
 
 str=self:readln()
 while strutil.strlen(str) > 0
@@ -185,24 +237,15 @@ if config.debug == true then io.stderr:write("parsedevinfo: " .. str .. "\n") en
 	tok=toks:next()
 	if tok=="Device"
 	then 
-		if CurrDev ~= nil then CurrDev:finalize() end
-		CurrDev=GetDevice(toks:next())
-		CurrDev:setname(toks:remaining())
-	elseif CurrDev ~= nil
-	then
-		 if tok=="Paired:" and toks:next() =="yes" then CurrDev.paired=true
-		 elseif tok=="Trusted:" and toks:next() =="yes" then CurrDev.trusted=true
-		 elseif tok=="Connected:" and toks:next() =="yes" then CurrDev.connected=true
-		 elseif tok=="Icon:" then CurrDev.icon=toks:next()
-		 elseif tok=="RSSI:" then CurrDev.rssi=toks:next()
-		 elseif tok=="Name:" then CurrDev:setname(toks:remaining())
-		 elseif tok=="UUID:" then CurrDev:adduuid(toks:remaining())
-		 end
+		if dev ~= nil then dev:finalize() end
+		dev=GetDevice(toks:next())
+		dev:setname(toks:remaining())
+	elseif dev ~= nil then dev:parse_info(tok, toks) 
 	end
 	str=self:readln()
 end
 
-if CurrDev ~= nil then CurrDev:finalize() end
+if dev ~= nil then dev:finalize() end
 end
 
 bt.getdevinfo=function(self, dev)
@@ -238,32 +281,8 @@ end
 
 
 
-bt.parsedevchange=function(self, toks)
-local tok, addr, dev
-
-	addr=toks:next()
-	tok=toks:next()
-	dev=devices[addr]
-	if dev ~= nil
-	then
-	if tok == "Name:" 
-	then 
-	dev.name=toks:remaining() 
-	ui:loaddevs()
-  elseif tok == "RSSI:"
-	then 
-	dev.rssi=toks:next()
-	ui:loaddevs()
-	elseif tok == "Connected:" and toks:next() == "yes"
-	then
-	  self:onconnected(dev)
-	end
-	end
-
-end
-
 bt.parse_change=function(self, toks)
-local dev
+local dev, tok
 
 tok=toks:next()
 if tok == "Device"
@@ -449,13 +468,11 @@ then
 	if tok == "power on succeeded" then self.powered=true
 	elseif tok == "power off succeeded" then self.powered=false
 	end
-io.stderr:write("Changing powered: " .. self.addr .. " " ..tostring(self.powered) .."\n")
 elseif tok=="Powered:"
 then
 	tok=toks:next()
 	if tok == "yes" then self.powered=true
 	else self.powered=false
-io.stderr:write("Changing powered: " .. self.addr .. " " ..tostring(self.powered) .."\n")
 	end
 end
 end
@@ -607,7 +624,12 @@ local screen={}
 
 screen.ui=ui
 screen.Term=ui.Term
+
 screen.menu=terminal.TERMMENU(screen.Term, 1, 2, Term:width()-2, Term:height() -6)
+
+screen.resize=function(self)
+screen.menu:resize(Term:width() -2, Term:height() -2)
+end
 
 screen.add=function(self, title, dev)
 self.menu:add(title, dev)
@@ -624,12 +646,14 @@ then
 	elseif dev.icon == "audio-card" then str="audio"
 	elseif dev.icon == "audio-headset" then str="audio"
 	elseif dev.icon == "audio-output" then str="audio"
+	elseif dev.icon == "audio-source" then str="audio"
+	elseif dev.icon == "audio-sink" then str="audio"
 	elseif dev.icon == "input-gaming" then str="gamectrl"
 	else str=dev.icon
 	end
 end
 
-str=strutil.padto(str, ' ', 15)
+str=strutil.padto(str, ' ', 10)
 return str
 end
 
@@ -637,12 +661,17 @@ end
 screen.formatrssi=function(self, dev)
 local str=""
 
-if dev.rssi == nil then str="signal:????"
+if dev.rssi == nil 
+then 
+ str="     --    "
 else 
+ val=tonumber(dev.rssi)
+ if val ~= nil
+	then
 -- convert dbm to percent
-val=tonumber(dev.rssi) + 100
-if val > 0 then val=0 end
-str=string.format("signal:%3d%%", val / 50 * 100)
+ val=2 * ( val + 100)
+ str=string.format("signal:%3d%%", val)
+	end
 end
 
 return str
@@ -650,24 +679,47 @@ end
 
 
 screen.menu_add_dev=function(self, dev)
-local str
+local str, name, vendor, term_wide
+
+term_wide=ui.Term:width()
+if config.show_beacons ~= true and strutil.strlen(dev.name) == 0 then return end
 
 str=dev.addr
-str=str .. "  " .. self:formatdevicetype(dev)
 
-str=str .. self:formatrssi(dev)
+if term_wide > 60
+then
+str=str .. "  " .. self:formatdevicetype(dev)
+end
+
+if term_wide > 80 then str=str .. self:formatrssi(dev) end
 
 if dev.connected == true then str=str.." * "
 else str=str.. "   " end 
 
+
+if term_wide > 80
+then
 if dev.paired == true then str=str.." paired "
 else str=str.. "        " end 
 
 if dev.trusted == true then str=str.." trusted "
 else str=str.. "         " end 
+end
 
-str=str.. "  ~m" ..dev.name .. "~0  "
 
+if dev.vendor==nil then vendor=""
+else vendor=dev.vendor end
+str=str.. string.format("%10s", vendor)
+
+if dev.name==nil 
+then 
+	if dev.vendor=="apple" then name="iBeacon" 
+	else name="???????"
+  end
+else name=dev.name 
+end
+
+str=str.."  ~m" .. name .."~0"
 self.menu:add(str, dev.addr)
 
 end
@@ -675,6 +727,7 @@ end
 
 
 screen.dev_cmp_name=function(d1, d2)
+if d1.name == nil and d2.name == nil then return(false) end
 if d1.name == nil then return(true) end
 if d2.name == nil then return(false) end
 return d1.name < d2.name
@@ -757,7 +810,7 @@ end
 
 
 screen.title=function(self)
-local addr, dev, count, controller, str, len
+local addr, dev, count, controller, str
 
 controller,count=controllers:curr()
 
@@ -779,6 +832,7 @@ self.Term:puts(str)
 end
 
 screen.infobox=function(self, menuchoice)
+local name, dev, str
 
 self.Term:move(0, self.Term:height() -4)
 
@@ -790,9 +844,13 @@ elseif menuchoice == "poweron" then self.Term:puts("power on bluetooth controlle
 else
   dev=GetDevice(menuchoice)
   
-  if dev ~= nil and dev.name ~= nil
+  if dev ~= nil 
   then
-	str="[" .. dev.name .. "] Supports: " .. string.sub(dev.uuids, 1, len) .. "~>~0"
+	if strutil.strlen(dev.name) ==0 then name=dev.addr
+	else name=dev.name
+	end
+
+	str="[" .. name .. "] Supports: " .. string.sub(dev.uuids, 1, len) .. "~>~0"
 	str=terminal.strtrunc(str, Term:width())
 	self.Term:puts(str)
   end
@@ -995,16 +1053,27 @@ end
 ui.loaddevs=function(self)
 self.mainscreen:update_menu()
 --if self.state==self.state_mainscreen then self.mainscreen:update() end
-ui:draw()
+self:draw()
 end
 
+
+ui.resize=function(self)
+self.mainscreen:resize() 
+self:draw()
+end
 
 
 ui.draw=function(self)
+
+self.Term:cork()
+self.Term:clear()
 if self.state == self.state_devscreen then self.devscreen:draw()
 else self.mainscreen:draw()
 end
+
 self:statusbar("~B~wkeys: w/i/up: menu up s/k/down: menu down d/l/right/enter: select a/j/left/esc: back Q/esc: Quit mainscreen S:start scan")
+self.Term:flush()
+
 end
 
 
@@ -1063,14 +1132,23 @@ controllers:poweron()
 while true
 do
 	if bt.reload_devices==true then ui:loaddevs() end
+  if process.sigcheck(process.SIGWINCH) == true then ui:resize() end
+  process.sigwatch(process.SIGWINCH)
+
 
 	S=poll:select(10)
 	if S==bt.S
 	then
 		bt:handle_input()
-	elseif S==Term:get_stream() then
+ 	elseif S==Term:get_stream() then
 		key=Term:getc()
 		if key=="S" then bt:startscan()
+		elseif key=="b" 
+		then 
+			if config.show_beacons == true then config.show_beacons=false
+			else config.show_beacons=true
+			end
+			ui:draw()
 		elseif key=="Q" then break
 		else
 		str=ui:onkey(key) 

@@ -4,7 +4,12 @@ local screen={}
 
 screen.ui=ui
 screen.Term=ui.Term
+
 screen.menu=terminal.TERMMENU(screen.Term, 1, 2, Term:width()-2, Term:height() -6)
+
+screen.resize=function(self)
+screen.menu:resize(Term:width() -2, Term:height() -2)
+end
 
 screen.add=function(self, title, dev)
 self.menu:add(title, dev)
@@ -21,12 +26,14 @@ then
 	elseif dev.icon == "audio-card" then str="audio"
 	elseif dev.icon == "audio-headset" then str="audio"
 	elseif dev.icon == "audio-output" then str="audio"
+	elseif dev.icon == "audio-source" then str="audio"
+	elseif dev.icon == "audio-sink" then str="audio"
 	elseif dev.icon == "input-gaming" then str="gamectrl"
 	else str=dev.icon
 	end
 end
 
-str=strutil.padto(str, ' ', 15)
+str=strutil.padto(str, ' ', 10)
 return str
 end
 
@@ -34,12 +41,17 @@ end
 screen.formatrssi=function(self, dev)
 local str=""
 
-if dev.rssi == nil then str="signal:????"
+if dev.rssi == nil 
+then 
+ str="     --    "
 else 
+ val=tonumber(dev.rssi)
+ if val ~= nil
+	then
 -- convert dbm to percent
-val=tonumber(dev.rssi) + 100
-if val > 0 then val=0 end
-str=string.format("signal:%3d%%", val / 50 * 100)
+ val=2 * ( val + 100)
+ str=string.format("signal:%3d%%", val)
+	end
 end
 
 return str
@@ -47,24 +59,47 @@ end
 
 
 screen.menu_add_dev=function(self, dev)
-local str
+local str, name, vendor, term_wide
+
+term_wide=ui.Term:width()
+if config.show_beacons ~= true and strutil.strlen(dev.name) == 0 then return end
 
 str=dev.addr
-str=str .. "  " .. self:formatdevicetype(dev)
 
-str=str .. self:formatrssi(dev)
+if term_wide > 60
+then
+str=str .. "  " .. self:formatdevicetype(dev)
+end
+
+if term_wide > 80 then str=str .. self:formatrssi(dev) end
 
 if dev.connected == true then str=str.." * "
 else str=str.. "   " end 
 
+
+if term_wide > 80
+then
 if dev.paired == true then str=str.." paired "
 else str=str.. "        " end 
 
 if dev.trusted == true then str=str.." trusted "
 else str=str.. "         " end 
+end
 
-str=str.. "  ~m" ..dev.name .. "~0  "
 
+if dev.vendor==nil then vendor=""
+else vendor=dev.vendor end
+str=str.. string.format("%10s", vendor)
+
+if dev.name==nil 
+then 
+	if dev.vendor=="apple" then name="iBeacon" 
+	else name="???????"
+  end
+else name=dev.name 
+end
+
+str=str.."  ~m" .. name .."~0"
 self.menu:add(str, dev.addr)
 
 end
@@ -72,6 +107,7 @@ end
 
 
 screen.dev_cmp_name=function(d1, d2)
+if d1.name == nil and d2.name == nil then return(false) end
 if d1.name == nil then return(true) end
 if d2.name == nil then return(false) end
 return d1.name < d2.name
@@ -154,7 +190,7 @@ end
 
 
 screen.title=function(self)
-local addr, dev, count, controller, str, len
+local addr, dev, count, controller, str
 
 controller,count=controllers:curr()
 
@@ -176,6 +212,7 @@ self.Term:puts(str)
 end
 
 screen.infobox=function(self, menuchoice)
+local name, dev, str
 
 self.Term:move(0, self.Term:height() -4)
 
@@ -187,9 +224,13 @@ elseif menuchoice == "poweron" then self.Term:puts("power on bluetooth controlle
 else
   dev=GetDevice(menuchoice)
   
-  if dev ~= nil and dev.name ~= nil
+  if dev ~= nil 
   then
-	str="[" .. dev.name .. "] Supports: " .. string.sub(dev.uuids, 1, len) .. "~>~0"
+	if strutil.strlen(dev.name) ==0 then name=dev.addr
+	else name=dev.name
+	end
+
+	str="[" .. name .. "] Supports: " .. string.sub(dev.uuids, 1, len) .. "~>~0"
 	str=terminal.strtrunc(str, Term:width())
 	self.Term:puts(str)
   end

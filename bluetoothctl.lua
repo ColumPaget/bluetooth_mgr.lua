@@ -53,7 +53,7 @@ end
 
 
 bt.parse_device_info=function(self)
-local str, CurrDev, toks, tok, name
+local str, dev, toks, tok, name
 
 str=self:readln()
 while strutil.strlen(str) > 0
@@ -66,24 +66,15 @@ if config.debug == true then io.stderr:write("parsedevinfo: " .. str .. "\n") en
 	tok=toks:next()
 	if tok=="Device"
 	then 
-		if CurrDev ~= nil then CurrDev:finalize() end
-		CurrDev=GetDevice(toks:next())
-		CurrDev:setname(toks:remaining())
-	elseif CurrDev ~= nil
-	then
-		 if tok=="Paired:" and toks:next() =="yes" then CurrDev.paired=true
-		 elseif tok=="Trusted:" and toks:next() =="yes" then CurrDev.trusted=true
-		 elseif tok=="Connected:" and toks:next() =="yes" then CurrDev.connected=true
-		 elseif tok=="Icon:" then CurrDev.icon=toks:next()
-		 elseif tok=="RSSI:" then CurrDev.rssi=toks:next()
-		 elseif tok=="Name:" then CurrDev:setname(toks:remaining())
-		 elseif tok=="UUID:" then CurrDev:adduuid(toks:remaining())
-		 end
+		if dev ~= nil then dev:finalize() end
+		dev=GetDevice(toks:next())
+		dev:setname(toks:remaining())
+	elseif dev ~= nil then dev:parse_info(tok, toks) 
 	end
 	str=self:readln()
 end
 
-if CurrDev ~= nil then CurrDev:finalize() end
+if dev ~= nil then dev:finalize() end
 end
 
 bt.getdevinfo=function(self, dev)
@@ -119,32 +110,8 @@ end
 
 
 
-bt.parsedevchange=function(self, toks)
-local tok, addr, dev
-
-	addr=toks:next()
-	tok=toks:next()
-	dev=devices[addr]
-	if dev ~= nil
-	then
-	if tok == "Name:" 
-	then 
-	dev.name=toks:remaining() 
-	ui:loaddevs()
-  elseif tok == "RSSI:"
-	then 
-	dev.rssi=toks:next()
-	ui:loaddevs()
-	elseif tok == "Connected:" and toks:next() == "yes"
-	then
-	  self:onconnected(dev)
-	end
-	end
-
-end
-
 bt.parse_change=function(self, toks)
-local dev
+local dev, tok
 
 tok=toks:next()
 if tok == "Device"

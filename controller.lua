@@ -30,13 +30,11 @@ then
 	if tok == "power on succeeded" then self.powered=true
 	elseif tok == "power off succeeded" then self.powered=false
 	end
-io.stderr:write("Changing powered: " .. self.addr .. " " ..tostring(self.powered) .."\n")
 elseif tok=="Powered:"
 then
 	tok=toks:next()
 	if tok == "yes" then self.powered=true
 	else self.powered=false
-io.stderr:write("Changing powered: " .. self.addr .. " " ..tostring(self.powered) .."\n")
 	end
 end
 end

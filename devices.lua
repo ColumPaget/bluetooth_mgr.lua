@@ -7,7 +7,11 @@ if devices[addr] ~= nil then return devices[addr] end
 
 -- functions
 dev.setname=function(self, name)
-if strutil.strlen(name) > 0 then dev.name=name end
+local str
+
+if strutil.strlen(name) == 0 then return end
+str=string.gsub(name, "-", ":")
+if strutil.strlen(name) > 0 and str ~= dev.addr then dev.name=name end
 end
 
 dev.adduuid=function(self, uuid)
@@ -20,23 +24,70 @@ end
 
 
 
+dev.parse_manufacturer_key=function(self, toks)
+local id
+
+	id=toks:next()
+	if id == "0x0000" then self.vendor="ericson"
+	elseif id == "0x0001" then self.vendor="nokia"
+	elseif id == "0x0002" then self.vendor="intel"
+	elseif id == "0x0003" then self.vendor="ibm"
+	elseif id == "0x0004" then self.vendor="toshiba"
+	elseif id == "0x0005" then self.vendor="3com"
+	elseif id == "0x0006" then self.vendor="microsoft"
+	elseif id == "0x0007" then self.vendor="lucent"
+	elseif id == "0x0008" then self.vendor="motorola"
+	elseif id == "0x004c" then self.vendor="apple"
+	elseif id == "0x00E0" then self.vendor="google"
+	elseif id == "0x011b" then self.vendor="hp ent."
+	elseif id == "0x013a" then self.vendor="tencent"
+	end
+end
+
+
+dev.parse_manufacturer=function(self, toks)
+if toks:next() == "Key:"
+then
+ self:parse_manufacturer_key(toks)
+end
+end
+
+
+dev.parse_rssi=function(self, toks)
+local str
+
+		str=toks:next()
+		if string.sub(str, 1, 2) == "0x" then str=toks:next() end
+		if string.sub(str, 1, 1) == "(" then str=string.sub(str, 2, 4) end
+		self.rssi=str
+end
+
+dev.parse_info=function(self, tok, toks)
+
+	if tok == "Name:" then self:setname(toks:remaining())
+	elseif tok == "Paired:" and toks:next() =="yes" then self.paired=true
+	elseif tok == "Trusted:" and toks:next() =="yes" then self.trusted=true
+	elseif tok == "Connected:" and toks:next() =="yes" then self.connected=true
+	elseif tok == "Icon:" then self.icon=toks:next()
+	elseif tok == "Name:" then self:setname(toks:remaining())
+	elseif tok == "UUID:" then self:adduuid(toks:remaining())
+	--old format is "MaunfacturerData Key:"
+	elseif tok == "ManufacturerData" then self:parse_manufacturer(toks)
+	--new format is "MaunfacturerData.Key:"
+	elseif tok == "ManufacturerData.Key:" then self:parse_manufacturer_key(toks)
+	elseif tok == "RSSI:" then self:parse_rssi(toks)
+  elseif tok == "Connected:" and toks:next() == "yes"
+	then
+	  bt:onconnected(self)
+	end
+end
+
 dev.parse_change=function(self, toks)
 local tok
 
 	tok=toks:next()
-	if tok == "Name:" 
-	then 
-	self.name=toks:remaining() 
+	self:parse_info(tok, toks)
 	ui:loaddevs()
-  elseif tok == "RSSI:"
-	then 
-	self.rssi=toks:next()
-	ui:loaddevs()
-	elseif tok == "Connected:" and toks:next() == "yes"
-	then
-	  bt:onconnected(self)
-	end
-
 end
 
 
@@ -44,7 +95,7 @@ end
 dev.finalize=function(self)
 local toks, tok
 
-if strutil.strlen(self.name) == 0 then self.name=self.addr end
+--if strutil.strlen(self.name) == 0 then self.name=self.addr end
 self.audio_output=false
 self.audio_input=false
 

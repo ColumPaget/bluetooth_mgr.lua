@@ -21,14 +21,23 @@ controllers:poweron()
 while true
 do
 	if bt.reload_devices==true then ui:loaddevs() end
+  if process.sigcheck(process.SIGWINCH) == true then ui:resize() end
+  process.sigwatch(process.SIGWINCH)
+
 
 	S=poll:select(10)
 	if S==bt.S
 	then
 		bt:handle_input()
-	elseif S==Term:get_stream() then
+ 	elseif S==Term:get_stream() then
 		key=Term:getc()
 		if key=="S" then bt:startscan()
+		elseif key=="b" 
+		then 
+			if config.show_beacons == true then config.show_beacons=false
+			else config.show_beacons=true
+			end
+			ui:draw()
 		elseif key=="Q" then break
 		else
 		str=ui:onkey(key) 
