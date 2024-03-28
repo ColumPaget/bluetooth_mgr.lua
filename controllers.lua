@@ -72,6 +72,12 @@ bt:send("power off")
 bt:consume_input("Changing power off succeeded", "controller:")
 end
 
+controllers.toggle_scan=function(self)
+local dev
+
+dev=self:curr()
+if dev ~= nil then dev:toggle_scan() end
+end
 
 return controllers
 end

@@ -59,6 +59,15 @@ ui:draw()
 end
 
 
+dev.toggle_scan=function(self)
+
+	if self.scanning == true then bt:stopscan()
+	else bt:startscan()
+	end
+
+end
+
+
 dev.get_state=function(self)
 local str
 

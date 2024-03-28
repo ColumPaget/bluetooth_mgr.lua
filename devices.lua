@@ -10,6 +10,9 @@ dev.setname=function(self, name)
 local str
 
 if strutil.strlen(name) == 0 then return end
+if name=="(random)" then return end
+if name=="(public)" then return end
+
 str=string.gsub(name, "-", ":")
 if strutil.strlen(name) > 0 and str ~= dev.addr then dev.name=name end
 end

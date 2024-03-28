@@ -7,9 +7,28 @@ ui={}
 ui.Term=Term
 ui.state_mainscreen=0
 ui.state_devscreen=1
+ui.state_helpscreen=2
 ui.state=ui.state_mainscreen
+
 ui.mainscreen=MainScreen_Init(ui)
 ui.devscreen=DeviceScreen_Init(ui)
+ui.helpscreen=HelpScreen_Init(ui)
+
+
+ui.switchscreen=function(self, name)
+local state=ui.state_mainscreen
+
+if name=="help" then state=ui.state_helpscreen
+elseif name=="device" then state=ui.state_devscreen
+elseif name=="main" then state=ui.state_mainscreen
+end
+
+if state == ui.state then ui.state = ui.state_mainscreen
+else ui.state = state
+end
+
+ui:draw()
+end
 
 ui.statusbar=function(self, text)
 local Term, len
@@ -40,10 +59,11 @@ ui.draw=function(self)
 self.Term:cork()
 self.Term:clear()
 if self.state == self.state_devscreen then self.devscreen:draw()
+elseif self.state == self.state_helpscreen then self.helpscreen:draw()
 else self.mainscreen:draw()
 end
 
-self:statusbar("~B~wkeys: w/i/up: menu up s/k/down: menu down d/l/right/enter: select a/j/left/esc: back Q/esc: Quit mainscreen S:start scan")
+self:statusbar("~B~wkeys: ?:help  w/i/up:menu up  s/k/down:menu down  d/l/right/enter:select  a/j/left/esc:back  Q/esc:Quit  S:scan")
 self.Term:flush()
 
 end
@@ -71,9 +91,15 @@ end
 if self.state==self.state_devscreen 
 then 
 return ui.devscreen:onkey(key)
+elseif self.state==self.state_helpscreen 
+then 
+return ui.helpscreen:onkey(key)
 else
 return self.mainscreen:onkey(key)
 end
+
+ui:draw()
+
 end
 
 

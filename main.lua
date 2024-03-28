@@ -31,7 +31,7 @@ do
 		bt:handle_input()
  	elseif S==Term:get_stream() then
 		key=Term:getc()
-		if key=="S" then bt:startscan()
+		if key=="S" then controllers:toggle_scan()
 		elseif key=="b" 
 		then 
 			if config.show_beacons == true then config.show_beacons=false
@@ -39,10 +39,12 @@ do
 			end
 			ui:draw()
 		elseif key=="Q" then break
+		elseif key=="?" then ui:switchscreen("help")
 		else
 		str=ui:onkey(key) 
 		if str == "exit" then break end
 		end
+
   end
 end
 

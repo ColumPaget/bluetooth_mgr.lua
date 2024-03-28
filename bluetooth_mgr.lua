@@ -33,6 +33,9 @@ dev.setname=function(self, name)
 local str
 
 if strutil.strlen(name) == 0 then return end
+if name=="(random)" then return end
+if name=="(public)" then return end
+
 str=string.gsub(name, "-", ":")
 if strutil.strlen(name) > 0 and str ~= dev.addr then dev.name=name end
 end
@@ -61,9 +64,17 @@ local id
 	elseif id == "0x0007" then self.vendor="lucent"
 	elseif id == "0x0008" then self.vendor="motorola"
 	elseif id == "0x004c" then self.vendor="apple"
+	elseif id == "0x0087" then self.vendor="garmin"
 	elseif id == "0x00E0" then self.vendor="google"
 	elseif id == "0x011b" then self.vendor="hp ent."
 	elseif id == "0x013a" then self.vendor="tencent"
+	elseif id == "0x0c8c" then self.vendor="tmobile"
+	elseif id == "0x0d04" then self.vendor="bartec"
+	elseif id == "0x0d07" then self.vendor="datalogic"
+	elseif id == "0x0d08" then self.vendor="datalogic"
+	elseif id == "0x0d5b" then self.vendor="axis"
+	elseif id == "0x0d28" then self.vendor="fujitsu"
+	elseif id == "0x0bee" then self.vendor="linksys"
 	end
 end
 
@@ -497,6 +508,15 @@ ui:draw()
 end
 
 
+dev.toggle_scan=function(self)
+
+	if self.scanning == true then bt:stopscan()
+	else bt:startscan()
+	end
+
+end
+
+
 dev.get_state=function(self)
 local str
 
@@ -588,6 +608,12 @@ bt:send("power off")
 bt:consume_input("Changing power off succeeded", "controller:")
 end
 
+controllers.toggle_scan=function(self)
+local dev
+
+dev=self:curr()
+if dev ~= nil then dev:toggle_scan() end
+end
 
 return controllers
 end
@@ -1027,6 +1053,64 @@ end
 
 
 
+function HelpScreen_Init(ui)
+local screen={}
+
+
+screen.resize=function(self)
+screen.menu:resize(Term:width() -2, Term:height() -2)
+end
+
+screen.add=function(self, title)
+self.menu:add(title)
+end
+
+
+
+
+
+screen.onkey=function(self, key)
+local str
+
+str=self.menu:onkey(key)
+self.menu:draw()
+
+return(str)
+end
+
+
+screen.update=function(self)
+self.menu:draw()
+end
+
+
+
+screen.draw=function(self)
+self.Term:clear()
+self.Term:move(0,0)
+self:update()
+
+end
+
+
+screen.ui=ui
+screen.Term=ui.Term
+screen.menu=terminal.TERMMENU(screen.Term, 1, 2, Term:width()-2, Term:height() -2)
+screen.menu:add("?                 -   this help");
+screen.menu:add("up/w/i            -   menu cursor up");
+screen.menu:add("down/s/k          -   menu cursor down");
+screen.menu:add("escape/left/a/j   -   back");
+screen.menu:add("enter/right/d/l   -   menu select");
+screen.menu:add("b                 -   toggle show bluetooth beacons");
+screen.menu:add("S                 -   toggle bluetooth scanning");
+screen.menu:add("Q                 -   quit application");
+
+
+
+return(screen)
+end
+
+
 
 
 function UI_Init(Term)
@@ -1035,9 +1119,28 @@ ui={}
 ui.Term=Term
 ui.state_mainscreen=0
 ui.state_devscreen=1
+ui.state_helpscreen=2
 ui.state=ui.state_mainscreen
+
 ui.mainscreen=MainScreen_Init(ui)
 ui.devscreen=DeviceScreen_Init(ui)
+ui.helpscreen=HelpScreen_Init(ui)
+
+
+ui.switchscreen=function(self, name)
+local state=ui.state_mainscreen
+
+if name=="help" then state=ui.state_helpscreen
+elseif name=="device" then state=ui.state_devscreen
+elseif name=="main" then state=ui.state_mainscreen
+end
+
+if state == ui.state then ui.state = ui.state_mainscreen
+else ui.state = state
+end
+
+ui:draw()
+end
 
 ui.statusbar=function(self, text)
 local Term, len
@@ -1068,10 +1171,11 @@ ui.draw=function(self)
 self.Term:cork()
 self.Term:clear()
 if self.state == self.state_devscreen then self.devscreen:draw()
+elseif self.state == self.state_helpscreen then self.helpscreen:draw()
 else self.mainscreen:draw()
 end
 
-self:statusbar("~B~wkeys: w/i/up: menu up s/k/down: menu down d/l/right/enter: select a/j/left/esc: back Q/esc: Quit mainscreen S:start scan")
+self:statusbar("~B~wkeys: ?:help  w/i/up:menu up  s/k/down:menu down  d/l/right/enter:select  a/j/left/esc:back  Q/esc:Quit  S:scan")
 self.Term:flush()
 
 end
@@ -1099,9 +1203,15 @@ end
 if self.state==self.state_devscreen 
 then 
 return ui.devscreen:onkey(key)
+elseif self.state==self.state_helpscreen 
+then 
+return ui.helpscreen:onkey(key)
 else
 return self.mainscreen:onkey(key)
 end
+
+ui:draw()
+
 end
 
 
@@ -1142,7 +1252,7 @@ do
 		bt:handle_input()
  	elseif S==Term:get_stream() then
 		key=Term:getc()
-		if key=="S" then bt:startscan()
+		if key=="S" then controllers:toggle_scan()
 		elseif key=="b" 
 		then 
 			if config.show_beacons == true then config.show_beacons=false
@@ -1150,10 +1260,12 @@ do
 			end
 			ui:draw()
 		elseif key=="Q" then break
+		elseif key=="?" then ui:switchscreen("help")
 		else
 		str=ui:onkey(key) 
 		if str == "exit" then break end
 		end
+
   end
 end
 
