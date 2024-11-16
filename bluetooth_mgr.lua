@@ -40,7 +40,8 @@ str=string.gsub(name, "-", ":")
 if strutil.strlen(name) > 0 and str ~= dev.addr then dev.name=name end
 end
 
-dev.adduuid=function(self, uuid)
+
+dev.add_uuid=function(self, uuid)
 local toks, tok
 
 toks=strutil.TOKENIZER(uuid, "(")
@@ -101,18 +102,15 @@ dev.parse_info=function(self, tok, toks)
 	if tok == "Name:" then self:setname(toks:remaining())
 	elseif tok == "Paired:" and toks:next() =="yes" then self.paired=true
 	elseif tok == "Trusted:" and toks:next() =="yes" then self.trusted=true
-	elseif tok == "Connected:" and toks:next() =="yes" then self.connected=true
+	elseif tok == "Connected:" and toks:next() =="yes" then self.connected=true; bt:onconnected(self)
 	elseif tok == "Icon:" then self.icon=toks:next()
 	elseif tok == "Name:" then self:setname(toks:remaining())
-	elseif tok == "UUID:" then self:adduuid(toks:remaining())
+	elseif tok == "UUID:" then self:add_uuid(toks:remaining())
 	--old format is "MaunfacturerData Key:"
 	elseif tok == "ManufacturerData" then self:parse_manufacturer(toks)
 	--new format is "MaunfacturerData.Key:"
 	elseif tok == "ManufacturerData.Key:" then self:parse_manufacturer_key(toks)
 	elseif tok == "RSSI:" then self:parse_rssi(toks)
-  elseif tok == "Connected:" and toks:next() == "yes"
-	then
-	  bt:onconnected(self)
 	end
 end
 
@@ -187,11 +185,29 @@ bt.reload_devices=true
 bt.S=stream.STREAM("cmd:bluetoothctl","rw timeout=5")
 bt.S:timeout(10)
 
+
+-- this just cleans any weird control characters out of a string read
+-- from bluetoothctl
+bt.clean=function(self, str)
+local i, c
+local new=""
+
+
+for i = 1, #str do
+    c = string.sub(str, i, i)
+		if string.byte(c) > 31 and string.byte(c) < 127 then new=new..c end
+end
+
+return new
+end
+
+
+-- write commands to bluetoothctl
 bt.send=function(self, line)
 if self.S ~= nil
 then
 self.S:writeln(line.."\n")
-if config.debug == true then io.stderr:write(line.."\n") end
+if config.debug == true then io.stderr:write("SEND: " .. line .. "\n") end
 end
 end
 
@@ -246,11 +262,13 @@ if config.debug == true then io.stderr:write("parsedevinfo: " .. str .. "\n") en
 	str=strutil.trim(str)
 	toks=strutil.TOKENIZER(str, " ")
 	tok=toks:next()
+
 	if tok=="Device"
 	then 
 		if dev ~= nil then dev:finalize() end
 		dev=GetDevice(toks:next())
 		dev:setname(toks:remaining())
+	elseif tok=="[bluetooth]#" then break
 	elseif dev ~= nil then dev:parse_info(tok, toks) 
 	end
 	str=self:readln()
@@ -273,6 +291,8 @@ local dev, addr, name
 if toks:remaining() == "has been removed" then return end
 
 addr=toks:next()
+if addr == "Information" then return end
+
 if devices[addr] ~= nil then return end
 
 if config.debug == true then io.stderr:write("parsedev: " .. addr.." "..toks:remaining() .. "\n") end
@@ -283,10 +303,11 @@ self.reload_devices=true
 return dev
 end
 
+
 bt.onconnected=function(self, dev)
 		dev.connected=true
 		dev.paired=true
-		ui:draw()
+		ui.redraw_needed=true
 		ui:statusbar("~G~wConnected to: " .. dev.addr .. " " .. dev.name)
 end
 
@@ -308,13 +329,15 @@ end
 end
 
 
-bt.parsedelete=function(self, toks)
+bt.parse_delete=function(self, toks)
 local tok, addr
 
 tok=toks:next()
 if tok == "Device"
 then
 	addr=toks:next()
+
+if config.debug == true then io.stderr:write("DELETE ITEM: " .. addr .. "\n") end
 	devices[addr]=nil
 	ui:loaddevs()
 end
@@ -322,19 +345,58 @@ end
 end
 
 
-
-
-
-bt.parsefailure=function(self, toks)
+bt.parse_attempt=function(self, toks)
 local tok
 
   tok=toks:next()
   tok=toks:next()
-	if tok == "connect:" then ui:statusbar("~R~w Failed to connect: ".. toks:remaining()) 
+	if tok == "connect" then ui:statusbar("~Y~n Attempting to connect: ".. toks:remaining()) 
+	elseif tok == "pair" then ui:statusbar("~Y~n Attempting to pair: ".. toks:remaining()) 
 	end
 end
 
 
+bt.parse_failure=function(self, toks)
+local tok
+
+  tok=toks:next()
+  tok=toks:next()
+
+	if tok == "connect:" then ui:statusbar("~R~w Failed to connect: ".. toks:remaining()) 
+	elseif tok == "pair:" then ui:statusbar("~R~w Failed to pair: ".. toks:remaining()) 
+	elseif tok == "start" 
+	then 
+    tok=toks:next()
+  	if tok=="discovery:" 
+   	then
+       tok=toks:next()
+			 if tok == "org.bluez.Error.InProgress" then controllers:scan_active(true) end
+	  end
+	end
+end
+
+
+
+
+
+-- a number of statements can have the form ???? Device <dev info>
+-- where '????' is some token, and '<dev info>' is the bluetooth address
+-- and name of a device. Parse all such instances to support dvice discovery
+bt.parse_check_for_device=function(self, toks)
+local tok, dev
+
+		tok=toks:next()
+		if tok=="Device"
+		then 
+		dev=self:parsedev(toks) 
+		if dev ~= nil then self:getdevinfo(dev) end
+		end
+end
+
+
+bt.parse_uuid=function(self, toks)
+if config.debug == true then io.stderr:write("parse_uuid: " .. str.."\n") end
+end
 
 
 bt.parse=function(self, str)
@@ -343,28 +405,34 @@ local toks, tok, dev
 if config.debug == true then io.stderr:write("parse: " .. str.."\n") end
 toks=strutil.TOKENIZER(str, " ")
 tok=toks:next()
-while tok ~= nil
-do
+
+
+if config.debug == true and tok ~= nil then io.stderr:write("tok1: " .. tok.."\n") end
+
+if tok ~= nil
+then
 	if tok=="Device" then self:parsedev(toks) 
+	elseif tok=="UUID" then self:parse_uuid(toks) 
 	elseif tok=="Controller" then controllers:parse(toks:remaining())
-	elseif tok=="Failed" then self:parsefailure(toks)
-	elseif tok=="Discovery" and toks:next() == "started" then ui:statusbar("~B~ySCANNING FOR DEVICES")
+	elseif tok=="Attempting" then self:parse_attempt(toks)
+	elseif tok=="Failed" then self:parse_failure(toks)
+	elseif tok=="Discovery" and toks:next() == "started" then controllers:scan_active(true)
+	elseif tok=="Discovery" and toks:next() == "stopped" then controllers:scan_active(false)
+	elseif tok=="Discovering" and toks:next() == "yes" then controllers:scan_active(true)
+	elseif tok=="Discovering" and toks:next() == "no" then controllers:scan_active(false)
+	elseif tok=="[NEW]" then self:parse_check_for_device(toks)
 	elseif tok=="[CHG]" then self:parse_change(toks)
-	elseif tok=="[DEL]" then self:parsedelete(toks)
+	elseif tok=="[DEL]" then self:parse_delete(toks)
 	elseif tok=="[agent]" then ui:statusbar("~Y~n" .. toks:remaining())
+	elseif tok=="Pairing" then ui:statusbar("~G~n" .. toks:remaining())
 	elseif tok=="Changing"
   then
 		dev=controllers:curr()
     if dev ~= nil then dev:parse_change(toks) end
 	else
-		tok=toks:next()
-		if tok=="Device"
-		then 
-		dev=self:parsedev(toks) 
-		if dev ~= nil then bt:getdevinfo(dev) end
-		end
+		self:parse_check_for_device(toks)
 	end
-tok=toks:next()
+--tok=toks:next()
 end
 
 end
@@ -373,40 +441,48 @@ end
 bt.readln=function(self)
 local str=""
 local ch
+local good_read=false
 
 ch=self.S:readch()
-while ch ~= '\n' and ch ~= '\r' and ch ~= nil and string.byte(ch) ~= 254
+while ch ~= nil and string.byte(ch) ~= 254
 do
+good_read=true
+if ch == '\n' or ch == '\r' then break end
 str=str..ch	
 ch=self.S:readch()
 end
 
 str=terminal.stripctrl(str)
-return strutil.trim(str)
+str=self:clean(str)
+
+if config.debug == true then io.stderr:write("read: " .. str .. "\n") end
+
+return strutil.trim(str), good_read
 end
 
 
 bt.handle_input=function(self)
-local str 
+local str, good_read
 
-str=bt:readln()
+str,good_read=bt:readln()
 bt:parse(str)
 
-return str
+return str,good_read
 end
 
 
 
 -- consume input until we hit an 'endstr' or we timeout
 bt.consume_input=function(self, endstr, debug_prefix)
-local str
+local str, good_read
 
-str=bt:handle_input()
-while strutil.strlen(str) > 0
+str,good_read=bt:handle_input()
+while good_read == true
 do
 	if config.debug == true then io.stderr:write(debug_prefix .. str .. "\n") end
+	
 	if strutil.strlen(endstr) > 0 and str == endstr then break end
-	str=bt:handle_input()
+str,good_read=bt:handle_input()
 end
 
 
@@ -422,6 +498,7 @@ self:send("devices")
 str=self:readln()
 while strutil.strlen(str) > 0
 do
+	if str=="[bluetooth]#" then break end
 	if config.debug == true then io.stderr:write("dev:" .. str .. "\n") end
 	self:parse(str)
 	str=self:readln()
@@ -445,27 +522,31 @@ end
 
 
 
-
-
-
 function NewController(addr)
 dev={}
 dev.addr=addr
 dev.active=false
 dev.powered=false
 
-dev.parse_state_item=function(self, toks)
-local tok
 
-if config.debug == true then io.stderr:write("controller:parse_state_item: ".. toks:remaining().."\n") end
+--this should parse things related to the bluetooth controller
+--however, many some commands put the system into a state where it will
+--wait for information related to the controller. During this time it can
+--receive information about things other than the controller, so we have
+--to call 'bt:parse' to handle that
+dev.parse_state_item=function(self, toks)
+local tok, remaining
+
+remaining=toks:remaining()
+if config.debug == true then io.stderr:write("controller:parse_state_item: ".. remaining.."\n") end
 
 tok=toks:next()
 
 if tok=="Discovering:"
 then
 	tok=toks:next()
-	if tok == "yes" then self.scanning=true
-	else self.scanning=false
+	if tok == "yes" then self:scan_active(true)
+	else self:scan_active(false)
 	end
 elseif tok=="Discoverable:"
 then
@@ -485,7 +566,9 @@ then
 	if tok == "yes" then self.powered=true
 	else self.powered=false
 	end
+else bt:parse(remaining)
 end
+
 end
 
 -- functions start here
@@ -504,7 +587,7 @@ end
 
 dev.parse_change=function(self, toks)
 self:parse_state_item(toks)
-ui:draw()
+ui.redraw_needed=true
 end
 
 
@@ -522,14 +605,29 @@ local str
 
 bt:send("show " .. self.addr) 
 str=bt:readln()
+if str=="[bluetooth]#" then str=bt:readln() end
+
 while strutil.strlen(str) > 0
 do
+	if str=="[bluetooth]#" then break end
 	if config.debug == true then io.stderr:write("controller_state:" .. str .. "\n") end
 	self:parse_state(str)
 	str=bt:readln()
 end
 
 end
+
+
+dev.scan_active=function(self, value)
+if value ~= nil
+then
+self.scanning=value
+ui.redraw_needed=true
+if config.debug == true then io.stderr:write("SCAN ACTIVE " .. tostring(value) .."\n") end
+end
+
+end
+
 -- functions end here
 
 return dev
@@ -538,12 +636,13 @@ function ControllersInit()
 local controllers={}
 
 controllers.items={}
-
+controllers.needs_refresh=false
 
 controllers.parse=function(self, line)
 local dev={}
 local toks, tok, str
 
+controllers.needs_refresh=true
 toks=strutil.TOKENIZER( strutil.trim(line), "\\S")
 dev=NewController(toks:next())
 
@@ -556,10 +655,22 @@ dev=NewController(toks:next())
 
 	if self.items[dev.addr] == nil then self.items[dev.addr]=dev end
 
-	if dev.active == true then dev:get_state() end
 end
 
 
+
+controllers.refresh=function(self)
+local addr, dev
+
+if self.needs_refresh == true
+then
+  for addr,dev in pairs(self.items)
+  do
+    dev:get_state()
+  end
+end
+
+end
 
 
 
@@ -569,6 +680,7 @@ local count, addr, dev, current
 count=0
 for addr,dev in pairs(self.items)
 do
+dev:get_state()
 if dev.active==true then current=dev end
 count=count + 1
 end
@@ -589,9 +701,14 @@ return nil
 end
 
 
+controllers.count=function(self)
+return #self.items
+end
+
 controllers.load=function(self)
 bt:send("list")
-bt:consume_input("", "controller:")
+bt:consume_input("", "")
+self:refresh()
 end
 
 
@@ -613,6 +730,17 @@ local dev
 
 dev=self:curr()
 if dev ~= nil then dev:toggle_scan() end
+self:refresh()
+end
+
+controllers.scan_active=function(self, value)
+local dev
+
+dev=self:curr()
+if dev ~= nil then 
+dev:scan_active(value)
+end
+
 end
 
 return controllers
@@ -781,6 +909,7 @@ if controller.powered == true then self.menu:add("Power down controller", "power
 else self.menu:add("Power on controller", "poweron")
 end
 
+self.menu:add("Change controller", "change controller")
 end
 
 bt.reload_devices=false
@@ -1121,6 +1250,7 @@ ui.state_mainscreen=0
 ui.state_devscreen=1
 ui.state_helpscreen=2
 ui.state=ui.state_mainscreen
+ui.redraw_needed=false
 
 ui.mainscreen=MainScreen_Init(ui)
 ui.devscreen=DeviceScreen_Init(ui)
@@ -1141,6 +1271,8 @@ end
 
 ui:draw()
 end
+
+
 
 ui.statusbar=function(self, text)
 local Term, len
@@ -1214,11 +1346,28 @@ ui:draw()
 
 end
 
+ui.start=function(self)
+self:switchscreen("main")
+end
+
+ui.refresh=function(self)
+if ui.redraw_needed==true
+then
+ui:draw()
+ui.redraw_needed=false
+end
+end
 
 return(ui)
 end
 
 
+
+
+-- must do this to ensure that we get standard english
+-- messages back from all programs we talk to
+process.setenv("LANG", "C")
+process.setenv("LC_ALL", "C")
 
 
 SettingsInit(arg)
@@ -1239,6 +1388,7 @@ Term:puts("~R~wBluetooth_mgr 0.1   LOADING DEVICES~>~0\r")
 controllers:poweron()
 
 
+ui:start()
 while true
 do
 	if bt.reload_devices==true then ui:loaddevs() end
@@ -1267,6 +1417,8 @@ do
 		end
 
   end
+
+	ui:refresh()
 end
 
 bt:stopscan() 

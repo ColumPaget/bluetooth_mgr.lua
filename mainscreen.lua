@@ -135,6 +135,7 @@ if controller.powered == true then self.menu:add("Power down controller", "power
 else self.menu:add("Power on controller", "poweron")
 end
 
+self.menu:add("Change controller", "change controller")
 end
 
 bt.reload_devices=false

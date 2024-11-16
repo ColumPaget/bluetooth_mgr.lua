@@ -2,12 +2,13 @@ function ControllersInit()
 local controllers={}
 
 controllers.items={}
-
+controllers.needs_refresh=false
 
 controllers.parse=function(self, line)
 local dev={}
 local toks, tok, str
 
+controllers.needs_refresh=true
 toks=strutil.TOKENIZER( strutil.trim(line), "\\S")
 dev=NewController(toks:next())
 
@@ -20,10 +21,22 @@ dev=NewController(toks:next())
 
 	if self.items[dev.addr] == nil then self.items[dev.addr]=dev end
 
-	if dev.active == true then dev:get_state() end
 end
 
 
+
+controllers.refresh=function(self)
+local addr, dev
+
+if self.needs_refresh == true
+then
+  for addr,dev in pairs(self.items)
+  do
+    dev:get_state()
+  end
+end
+
+end
 
 
 
@@ -33,6 +46,7 @@ local count, addr, dev, current
 count=0
 for addr,dev in pairs(self.items)
 do
+dev:get_state()
 if dev.active==true then current=dev end
 count=count + 1
 end
@@ -53,9 +67,14 @@ return nil
 end
 
 
+controllers.count=function(self)
+return #self.items
+end
+
 controllers.load=function(self)
 bt:send("list")
-bt:consume_input("", "controller:")
+bt:consume_input("", "")
+self:refresh()
 end
 
 
@@ -77,6 +96,17 @@ local dev
 
 dev=self:curr()
 if dev ~= nil then dev:toggle_scan() end
+self:refresh()
+end
+
+controllers.scan_active=function(self, value)
+local dev
+
+dev=self:curr()
+if dev ~= nil then 
+dev:scan_active(value)
+end
+
 end
 
 return controllers

@@ -17,7 +17,8 @@ str=string.gsub(name, "-", ":")
 if strutil.strlen(name) > 0 and str ~= dev.addr then dev.name=name end
 end
 
-dev.adduuid=function(self, uuid)
+
+dev.add_uuid=function(self, uuid)
 local toks, tok
 
 toks=strutil.TOKENIZER(uuid, "(")
@@ -78,18 +79,15 @@ dev.parse_info=function(self, tok, toks)
 	if tok == "Name:" then self:setname(toks:remaining())
 	elseif tok == "Paired:" and toks:next() =="yes" then self.paired=true
 	elseif tok == "Trusted:" and toks:next() =="yes" then self.trusted=true
-	elseif tok == "Connected:" and toks:next() =="yes" then self.connected=true
+	elseif tok == "Connected:" and toks:next() =="yes" then self.connected=true; bt:onconnected(self)
 	elseif tok == "Icon:" then self.icon=toks:next()
 	elseif tok == "Name:" then self:setname(toks:remaining())
-	elseif tok == "UUID:" then self:adduuid(toks:remaining())
+	elseif tok == "UUID:" then self:add_uuid(toks:remaining())
 	--old format is "MaunfacturerData Key:"
 	elseif tok == "ManufacturerData" then self:parse_manufacturer(toks)
 	--new format is "MaunfacturerData.Key:"
 	elseif tok == "ManufacturerData.Key:" then self:parse_manufacturer_key(toks)
 	elseif tok == "RSSI:" then self:parse_rssi(toks)
-  elseif tok == "Connected:" and toks:next() == "yes"
-	then
-	  bt:onconnected(self)
 	end
 end
 

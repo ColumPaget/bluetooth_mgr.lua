@@ -5,18 +5,25 @@ dev.addr=addr
 dev.active=false
 dev.powered=false
 
-dev.parse_state_item=function(self, toks)
-local tok
 
-if config.debug == true then io.stderr:write("controller:parse_state_item: ".. toks:remaining().."\n") end
+--this should parse things related to the bluetooth controller
+--however, many some commands put the system into a state where it will
+--wait for information related to the controller. During this time it can
+--receive information about things other than the controller, so we have
+--to call 'bt:parse' to handle that
+dev.parse_state_item=function(self, toks)
+local tok, remaining
+
+remaining=toks:remaining()
+if config.debug == true then io.stderr:write("controller:parse_state_item: ".. remaining.."\n") end
 
 tok=toks:next()
 
 if tok=="Discovering:"
 then
 	tok=toks:next()
-	if tok == "yes" then self.scanning=true
-	else self.scanning=false
+	if tok == "yes" then self:scan_active(true)
+	else self:scan_active(false)
 	end
 elseif tok=="Discoverable:"
 then
@@ -36,7 +43,9 @@ then
 	if tok == "yes" then self.powered=true
 	else self.powered=false
 	end
+else bt:parse(remaining)
 end
+
 end
 
 -- functions start here
@@ -55,7 +64,7 @@ end
 
 dev.parse_change=function(self, toks)
 self:parse_state_item(toks)
-ui:draw()
+ui.redraw_needed=true
 end
 
 
@@ -73,14 +82,29 @@ local str
 
 bt:send("show " .. self.addr) 
 str=bt:readln()
+if str=="[bluetooth]#" then str=bt:readln() end
+
 while strutil.strlen(str) > 0
 do
+	if str=="[bluetooth]#" then break end
 	if config.debug == true then io.stderr:write("controller_state:" .. str .. "\n") end
 	self:parse_state(str)
 	str=bt:readln()
 end
 
 end
+
+
+dev.scan_active=function(self, value)
+if value ~= nil
+then
+self.scanning=value
+ui.redraw_needed=true
+if config.debug == true then io.stderr:write("SCAN ACTIVE " .. tostring(value) .."\n") end
+end
+
+end
+
 -- functions end here
 
 return dev

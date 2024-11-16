@@ -1,5 +1,11 @@
 
 
+-- must do this to ensure that we get standard english
+-- messages back from all programs we talk to
+process.setenv("LANG", "C")
+process.setenv("LC_ALL", "C")
+
+
 SettingsInit(arg)
 
 Term=terminal.TERM(nil, "wheelmouse rawkeys save")
@@ -18,6 +24,7 @@ Term:puts("~R~wBluetooth_mgr 0.1   LOADING DEVICES~>~0\r")
 controllers:poweron()
 
 
+ui:start()
 while true
 do
 	if bt.reload_devices==true then ui:loaddevs() end
@@ -46,6 +53,8 @@ do
 		end
 
   end
+
+	ui:refresh()
 end
 
 bt:stopscan() 

@@ -9,6 +9,7 @@ ui.state_mainscreen=0
 ui.state_devscreen=1
 ui.state_helpscreen=2
 ui.state=ui.state_mainscreen
+ui.redraw_needed=false
 
 ui.mainscreen=MainScreen_Init(ui)
 ui.devscreen=DeviceScreen_Init(ui)
@@ -29,6 +30,8 @@ end
 
 ui:draw()
 end
+
+
 
 ui.statusbar=function(self, text)
 local Term, len
@@ -102,6 +105,17 @@ ui:draw()
 
 end
 
+ui.start=function(self)
+self:switchscreen("main")
+end
+
+ui.refresh=function(self)
+if ui.redraw_needed==true
+then
+ui:draw()
+ui.redraw_needed=false
+end
+end
 
 return(ui)
 end
