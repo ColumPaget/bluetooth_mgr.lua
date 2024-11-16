@@ -5,7 +5,7 @@ require("time")
 require("process")
 
 config={}
-config.version="1.6"
+config.version="1.7"
 config.show_beacons=false
 
 function make_sorted(input, cmp_func)
