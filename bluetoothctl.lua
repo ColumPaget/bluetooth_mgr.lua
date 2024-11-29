@@ -70,8 +70,8 @@ end
 
 
 
-bt.parse_device_info=function(self)
-local str, dev, toks, tok, name
+bt.parse_device_info=function(self, dev)
+local str, toks, tok, name
 
 str=self:readln()
 while strutil.strlen(str) > 0
@@ -83,12 +83,14 @@ if config.debug == true then io.stderr:write("parsedevinfo: " .. str .. "\n") en
 	toks=strutil.TOKENIZER(str, " ")
 	tok=toks:next()
 
-	if tok=="Device"
+	-- [bluetooth]# signals end of text
+	if string.sub(tok, 1, 1)=="[" then break
+	-- if we get another device, then start parsing that!
+	elseif tok=="Device"
 	then 
 		if dev ~= nil then dev:finalize() end
 		dev=GetDevice(toks:next())
 		dev:setname(toks:remaining())
-	elseif tok=="[bluetooth]#" then break
 	elseif dev ~= nil then dev:parse_info(tok, toks) 
 	end
 	str=self:readln()
@@ -98,26 +100,23 @@ if dev ~= nil then dev:finalize() end
 end
 
 bt.getdevinfo=function(self, dev)
-
 self:send("info "..dev.addr)
-self:parse_device_info()
-
 end
 
 
 bt.parsedev=function(self, toks)
-local dev, addr, name
+local dev, addr, name, str
 
 if toks:remaining() == "has been removed" then return end
 
 addr=toks:next()
-if addr == "Information" then return end
-
-if devices[addr] ~= nil then return end
-
 if config.debug == true then io.stderr:write("parsedev: " .. addr.." "..toks:remaining() .. "\n") end
 
-dev=NewDevice(addr, toks:remaining())
+if addr == "Information" then return end
+dev=devices[addr]
+if dev == nil then dev=NewDevice(addr, toks:remaining()) end
+
+self:parse_device_info(dev, self)
 self.reload_devices=true 
 
 return dev
@@ -227,13 +226,13 @@ toks=strutil.TOKENIZER(str, " ")
 tok=toks:next()
 
 
-if config.debug == true and tok ~= nil then io.stderr:write("tok1: " .. tok.."\n") end
+if config.debug == true and tok ~= nil then io.stderr:write("tok1: [" .. tok.."]\n") end
 
 if tok ~= nil
 then
 	if tok=="Device" then self:parsedev(toks) 
-	elseif tok=="UUID" then self:parse_uuid(toks) 
 	elseif tok=="Controller" then controllers:parse(toks:remaining())
+	elseif tok=="UUID" then self:parse_uuid(toks) 
 	elseif tok=="Attempting" then self:parse_attempt(toks)
 	elseif tok=="Failed" then self:parse_failure(toks)
 	elseif tok=="Discovery" and toks:next() == "started" then controllers:scan_active(true)
@@ -327,9 +326,9 @@ end
 
 for addr,dev in pairs(devices)
 do
-self:send("info "..addr)
+self:getdevinfo(dev)
 end
-self:parse_device_info()
+
 end
 
 

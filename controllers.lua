@@ -6,20 +6,31 @@ controllers.needs_refresh=false
 
 controllers.parse=function(self, line)
 local dev={}
-local toks, tok, str
+local toks, tok, str, addr
 
 controllers.needs_refresh=true
 toks=strutil.TOKENIZER( strutil.trim(line), "\\S")
-dev=NewController(toks:next())
 
+addr=toks:next()
+dev=self.items[addr]
+if dev == nil 
+then 
+dev=NewController(addr)
+self.items[dev.addr]=dev 
+end
+
+
+tok=toks:next()
+while tok
+do
+	if tok=="[default]" then dev.active=true end
 	tok=toks:next()
-	while tok
-	do
-		if tok=="[default]" then dev.active=true end
-		tok=toks:next()
-	end
+end
 
-	if self.items[dev.addr] == nil then self.items[dev.addr]=dev end
+dev:parse_info()
+
+if config.debug == true then io.stderr:write("NewController: [".. dev.addr .. "]\n") end
+
 
 end
 
@@ -39,14 +50,13 @@ end
 end
 
 
-
-controllers.curr=function(self)
+controllers.curr=function(self, refresh)
 local count, addr, dev, current
 
 count=0
 for addr,dev in pairs(self.items)
 do
-dev:get_state()
+if refresh == true then dev:get_state() end
 if dev.active==true then current=dev end
 count=count + 1
 end

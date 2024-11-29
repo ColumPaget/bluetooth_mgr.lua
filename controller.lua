@@ -1,9 +1,9 @@
 
 function NewController(addr)
-dev={}
-dev.addr=addr
-dev.active=false
-dev.powered=false
+local controller={}
+controller.addr=addr
+controller.active=false
+controller.powered=false
 
 
 --this should parse things related to the bluetooth controller
@@ -11,7 +11,7 @@ dev.powered=false
 --wait for information related to the controller. During this time it can
 --receive information about things other than the controller, so we have
 --to call 'bt:parse' to handle that
-dev.parse_state_item=function(self, toks)
+controller.parse_state_item=function(self, toks)
 local tok, remaining
 
 remaining=toks:remaining()
@@ -49,7 +49,7 @@ end
 end
 
 -- functions start here
-dev.parse_state=function(self, line)
+controller.parse_state=function(self, line)
 local toks, tok
 
 toks=strutil.TOKENIZER( strutil.trim(line), "\\S")
@@ -62,13 +62,13 @@ end
 end
 
 
-dev.parse_change=function(self, toks)
+controller.parse_change=function(self, toks)
 self:parse_state_item(toks)
 ui.redraw_needed=true
 end
 
 
-dev.toggle_scan=function(self)
+controller.toggle_scan=function(self)
 
 	if self.scanning == true then bt:stopscan()
 	else bt:startscan()
@@ -77,17 +77,29 @@ dev.toggle_scan=function(self)
 end
 
 
-dev.get_state=function(self)
-local str
+controller.get_state=function(self)
 
 bt:send("show " .. self.addr) 
+
+end
+
+
+
+
+controller.parse_info=function(self)
+local str
+
 str=bt:readln()
-if str=="[bluetooth]#" then str=bt:readln() end
+
 
 while strutil.strlen(str) > 0
 do
-	if str=="[bluetooth]#" then break end
-	if config.debug == true then io.stderr:write("controller_state:" .. str .. "\n") end
+	-- prompts like "[bluetooth]#" signal the end of controller data
+
+if config.debug == true then io.stderr:write("controller:parse_info: [" .. str .. "]\n") end
+
+	if string.sub(str, 1, 1) == "[" then break end
+
 	self:parse_state(str)
 	str=bt:readln()
 end
@@ -95,7 +107,7 @@ end
 end
 
 
-dev.scan_active=function(self, value)
+controller.scan_active=function(self, value)
 if value ~= nil
 then
 self.scanning=value
@@ -107,5 +119,5 @@ end
 
 -- functions end here
 
-return dev
+return controller
 end
