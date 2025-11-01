@@ -20,7 +20,9 @@ poll=stream.POLL_IO()
 poll:add(Term:get_stream())
 poll:add(bt.S)
 
-Term:puts("~R~wBluetooth_mgr 0.1   LOADING DEVICES~>~0\r")
+device_names:load()
+
+Term:puts("~R~wBluetooth_mgr " .. config.version .. "   LOADING DEVICES~>~0\r")
 controllers:poweron()
 
 

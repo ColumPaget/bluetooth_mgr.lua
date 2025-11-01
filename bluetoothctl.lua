@@ -123,13 +123,6 @@ return dev
 end
 
 
-bt.onconnected=function(self, dev)
-		dev.connected=true
-		dev.paired=true
-		ui.redraw_needed=true
-		ui:statusbar("~G~wConnected to: " .. dev.addr .. " " .. dev.name)
-end
-
 
 
 bt.parse_change=function(self, toks)

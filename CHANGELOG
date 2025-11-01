@@ -1,0 +1,36 @@
+v2.0
+* add 'name devices' system
+* gather service info from newly paired devices
+* handle screen refresh without losing menu cursor
+* better handline of 'paired', 'connect', 'trust' etc
+
+v1.8 (2024-11-29)
+* better parsing of bluetoothctl output
+
+v1.7 (2024-11-16)
+* efforts to improve parsing of output from bluetoothctl
+
+v1.6 (2024-03-28)
+* added help screen
+* ui improvements
+
+v1.5 (2024-03-24)
+* remove debug output. better 'audio dev' detection
+
+v1.4 (2024-03-23)
+* handle controller power on/off properly
+
+v1.3 (2024-03-23)
+* added 'bluealsa setup' for audio devices, sort device list on main menu, fix some bugs and crashes
+
+v1.2 (2023-06-05)
+* fix crash when no bluetooth controller present
+* fix 'esc' key to be 'back' not 'exit'
+* fix crash when no controller installed
+* Create LICENSE
+
+v1.1 (2023-01-25)
+* various fixes
+
+v1.0 (2023-01-14)
+* initial commit

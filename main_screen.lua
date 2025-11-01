@@ -13,6 +13,7 @@ end
 
 screen.add=function(self, title, dev)
 self.menu:add(title, dev)
+
 end
 
 
@@ -59,37 +60,38 @@ end
 
 
 screen.menu_add_dev=function(self, dev)
-local str, name, vendor, term_wide
+local title, str, name, vendor, term_wide
 
 term_wide=ui.Term:width()
 if config.show_beacons ~= true and strutil.strlen(dev.name) == 0 then return end
 
-str=dev.addr
+title=dev.addr
 
 if term_wide > 60
 then
-str=str .. "  " .. self:formatdevicetype(dev)
+title=title .. "  " .. self:formatdevicetype(dev)
 end
 
-if term_wide > 80 then str=str .. self:formatrssi(dev) end
+if term_wide > 80 then title=title .. self:formatrssi(dev) end
 
-if dev.connected == true then str=str.." * "
-else str=str.. "   " end 
+if dev.connected == true then title=title.." * "
+else title=title.. "   " end 
 
 
 if term_wide > 80
 then
-if dev.paired == true then str=str.." paired "
-else str=str.. "        " end 
+if dev.paired == true then title=title.." paired "
+else title=title.. "        " end 
 
-if dev.trusted == true then str=str.." trusted "
-else str=str.. "         " end 
+if dev.trusted == true then title=title.." trusted "
+else title=title.. "         " end 
 end
 
 
 if dev.vendor==nil then vendor=""
 else vendor=dev.vendor end
-str=str.. string.format("%10s", vendor)
+title=title .. string.format("%10s", vendor)
+
 
 if dev.name==nil 
 then 
@@ -99,8 +101,11 @@ then
 else name=dev.name 
 end
 
-str=str.."  ~m" .. name .."~0"
-self.menu:add(str, dev.addr)
+str=device_names:get(dev.addr)
+if strutil.strlen(str) > 0 then name=str end
+
+title=title.."  ~m" .. name .."~0"
+self.menu:add(title, dev.addr)
 
 end
 
@@ -115,13 +120,15 @@ end
 
 
 screen.update_menu=function(self)
-local addr,dev,str,controller
+local addr, dev, str, controller
 local pos=0
 local sorted
 
 controller=controllers:curr()
 
 pos=self.menu:curr()
+if strutil.strlen(pos) == 0 then pos="exit" end
+
 self.menu:clear()
 self.menu:add("Exit app", "exit")
 
@@ -231,7 +238,7 @@ else
 	else name=dev.name
 	end
 
-	str="[" .. name .. "] Supports: " .. string.sub(dev.uuids, 1, len) .. "~>~0"
+	str="[" .. name .. "] Supports: " .. string.sub(dev:get_uuids(), 1, len) .. "~>~0"
 	str=terminal.strtrunc(str, Term:width())
 	self.Term:puts(str)
   end
@@ -246,7 +253,6 @@ local curr, dev
 self.menu:draw()
 curr=self.menu:curr()
 if strutil.strlen(curr) > 0 then self:infobox(curr)  end
-
 end
 
 screen.draw=function(self)

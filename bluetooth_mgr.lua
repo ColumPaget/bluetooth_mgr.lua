@@ -3,9 +3,10 @@ require("strutil")
 require("terminal")
 require("time")
 require("process")
+require("filesys")
 
 config={}
-config.version="1.8"
+config.version="2.0"
 config.show_beacons=false
 
 function make_sorted(input, cmp_func)
@@ -25,6 +26,11 @@ devices={}
 
 function NewDevice(addr, name)
 local dev={}
+
+dev.uuids={}
+dev.trusted=false
+dev.connected=false
+dev.paired=false
 
 if devices[addr] ~= nil then return devices[addr] end
 
@@ -46,9 +52,21 @@ local toks, tok
 
 toks=strutil.TOKENIZER(uuid, "(")
 tok=strutil.trim(toks:next())
-self.uuids=self.uuids .. tok .. ","
+self.uuids[tok]=tok
 end
 
+
+dev.get_uuids=function(self, uuid)
+local str, key, value
+
+str=""
+for key, value in pairs(self.uuids)
+do
+str=str .. key .. ","
+end
+
+return str
+end
 
 
 dev.parse_manufacturer_key=function(self, toks)
@@ -97,12 +115,57 @@ local str
 		self.rssi=str
 end
 
+
+
+
+dev.onpair=function(self)
+    if self.paired == false 
+    then 
+    bt:getdevinfo(self) 
+		self.paired=true
+		ui.redraw_needed=true
+		ui:statusbar("~Y~wPaired to: " .. self.addr .. " " .. self.name)
+    end
+end
+
+
+dev.onconnect=function(self)
+    if self.connected == false
+    then 
+    bt:getdevinfo(self)
+		self.connected=true
+		self.paired=true
+		ui.redraw_needed=true
+		ui:statusbar("~G~wConnected to: " .. self.addr .. " " .. self.name)
+    end
+end
+
+
+dev.ontrust=function(self)
+    if self.trusted == false 
+    then 
+    bt:getdevinfo(self)
+		self.paired=true
+		self.trusted=true
+		ui.redraw_needed=true
+		ui:statusbar("~G~wConnected to: " .. self.addr .. " " .. self.name)
+    end
+end
+
+
+dev.onservices=function(self)
+    bt:getdevinfo(self)
+end
+
+
+
 dev.parse_info=function(self, tok, toks)
 
 	if tok == "Name:" then self:setname(toks:remaining())
-	elseif tok == "Paired:" and toks:next() =="yes" then self.paired=true
-	elseif tok == "Trusted:" and toks:next() =="yes" then self.trusted=true
-	elseif tok == "Connected:" and toks:next() =="yes" then self.connected=true; bt:onconnected(self)
+	elseif tok == "Paired:" and toks:next() =="yes" then self:onpair()
+	elseif tok == "Trusted:" and toks:next() =="yes" then self:ontrust()
+	elseif tok == "Connected:" and toks:next() =="yes" then self:onconnect()
+	elseif tok == "ServicesResolved:" and toks:next() =="yes" then self:onservices()
 	elseif tok == "Icon:" then self.icon=toks:next()
 	elseif tok == "Name:" then self:setname(toks:remaining())
 	elseif tok == "UUID:" then self:add_uuid(toks:remaining())
@@ -131,29 +194,26 @@ local toks, tok
 self.audio_output=false
 self.audio_input=false
 
-toks=strutil.TOKENIZER(self.uuids, ",")
-tok=toks:next()
-while tok ~= nil
+for tok in pairs(self.uuids)
 do
-if tok=="Audio Sink" then self.audio_output=true end
-if tok=="Audio Source" then self.audio_input=true end
-tok=toks:next()
+   if tok=="Audio Sink" then self.audio_output=true end
+   if tok=="Audio Source" then self.audio_input=true end
 end
-
+   
 if self.icon == "audio-card"
 then
-	if self.audio_output ~= true then self.icon = "audio-source"
-	elseif self.audio_input ~= true then self.icon = "audio-output"
-	end
+ 	if self.audio_output ~= true then self.icon = "audio-source"
+ 	elseif self.audio_input ~= true then self.icon = "audio-output"
+ 	end
 end
 
 end
+
 
 --end functions
 
 dev.addr=addr
 dev:setname(name)
-dev.uuids=""
 devices[addr]=dev
 
 return dev
@@ -302,13 +362,6 @@ self.reload_devices=true
 return dev
 end
 
-
-bt.onconnected=function(self, dev)
-		dev.connected=true
-		dev.paired=true
-		ui.redraw_needed=true
-		ui:statusbar("~G~wConnected to: " .. dev.addr .. " " .. dev.name)
-end
 
 
 
@@ -793,6 +846,80 @@ end
 end
 
 }
+device_names={
+items={},
+
+filepath=function(self)
+return process.homeDir() .. "/.config/bluetooth_mgr.lua/device_names.conf"
+end,
+
+
+add=function(self, addr, title)
+self.items[addr]=title
+self:save()
+end,
+
+del=function(self, addr)
+self.items[addr]=nil
+end,
+
+get=function(self, addr)
+local str
+
+str=self.items[addr]
+if strutil.strlen(str) > 0 then return str end
+return("")
+end,
+
+
+save=function(self)
+local S, addr, name, str
+
+str=self:filepath()
+filesys.mkdirPath(str)
+S=stream.STREAM(str, "w")
+if S ~= nil
+then
+  for addr, name in pairs(self.items)
+  do
+	S:writeln(addr .. " ".. name.."\n")
+  end
+  S:close()
+end
+
+end,
+
+
+load_item=function(self, str)
+local toks, addr, name
+
+toks=strutil.TOKENIZER(str, "\\S")
+addr=toks:next()
+name=toks:remaining()
+
+if strutil.strlen(addr) > 0 and strutil.strlen(name) then self.items[addr]=name end
+end,
+
+
+load=function(self)
+local S, str
+
+str=self:filepath()
+S=stream.STREAM(str, "r")
+if S ~= nil
+then
+  str=S:readln()
+  while str ~= nil
+  do
+  self:load_item(strutil.trim(str))
+  str=S:readln()
+  end
+  S:close()
+end
+
+end
+
+}
 
 function MainScreen_Init(ui)
 local screen={}
@@ -808,6 +935,7 @@ end
 
 screen.add=function(self, title, dev)
 self.menu:add(title, dev)
+
 end
 
 
@@ -854,37 +982,38 @@ end
 
 
 screen.menu_add_dev=function(self, dev)
-local str, name, vendor, term_wide
+local title, str, name, vendor, term_wide
 
 term_wide=ui.Term:width()
 if config.show_beacons ~= true and strutil.strlen(dev.name) == 0 then return end
 
-str=dev.addr
+title=dev.addr
 
 if term_wide > 60
 then
-str=str .. "  " .. self:formatdevicetype(dev)
+title=title .. "  " .. self:formatdevicetype(dev)
 end
 
-if term_wide > 80 then str=str .. self:formatrssi(dev) end
+if term_wide > 80 then title=title .. self:formatrssi(dev) end
 
-if dev.connected == true then str=str.." * "
-else str=str.. "   " end 
+if dev.connected == true then title=title.." * "
+else title=title.. "   " end 
 
 
 if term_wide > 80
 then
-if dev.paired == true then str=str.." paired "
-else str=str.. "        " end 
+if dev.paired == true then title=title.." paired "
+else title=title.. "        " end 
 
-if dev.trusted == true then str=str.." trusted "
-else str=str.. "         " end 
+if dev.trusted == true then title=title.." trusted "
+else title=title.. "         " end 
 end
 
 
 if dev.vendor==nil then vendor=""
 else vendor=dev.vendor end
-str=str.. string.format("%10s", vendor)
+title=title .. string.format("%10s", vendor)
+
 
 if dev.name==nil 
 then 
@@ -894,8 +1023,11 @@ then
 else name=dev.name 
 end
 
-str=str.."  ~m" .. name .."~0"
-self.menu:add(str, dev.addr)
+str=device_names:get(dev.addr)
+if strutil.strlen(str) > 0 then name=str end
+
+title=title.."  ~m" .. name .."~0"
+self.menu:add(title, dev.addr)
 
 end
 
@@ -910,13 +1042,15 @@ end
 
 
 screen.update_menu=function(self)
-local addr,dev,str,controller
+local addr, dev, str, controller
 local pos=0
 local sorted
 
 controller=controllers:curr()
 
 pos=self.menu:curr()
+if strutil.strlen(pos) == 0 then pos="exit" end
+
 self.menu:clear()
 self.menu:add("Exit app", "exit")
 
@@ -1026,7 +1160,7 @@ else
 	else name=dev.name
 	end
 
-	str="[" .. name .. "] Supports: " .. string.sub(dev.uuids, 1, len) .. "~>~0"
+	str="[" .. name .. "] Supports: " .. string.sub(dev:get_uuids(), 1, len) .. "~>~0"
 	str=terminal.strtrunc(str, Term:width())
 	self.Term:puts(str)
   end
@@ -1041,7 +1175,6 @@ local curr, dev
 self.menu:draw()
 curr=self.menu:curr()
 if strutil.strlen(curr) > 0 then self:infobox(curr)  end
-
 end
 
 screen.draw=function(self)
@@ -1067,8 +1200,10 @@ function DeviceScreen_Init(ui)
 local screen={}
 
 screen.ui=ui
+screen.curr="back"
 screen.Term=ui.Term
-screen.menu=terminal.TERMMENU(screen.Term, 1, 4, Term:width()-2, Term:height() -6)
+screen.menu=terminal.TERMMENU(screen.Term, 1, 6, Term:width()-2, Term:height() -10)
+
 
 screen.add_option=function(self, option)
 local toks, id
@@ -1076,6 +1211,7 @@ local toks, id
 toks=strutil.TOKENIZER(option, " ")
 id=toks:next()
 self.menu:add(option, id)
+if strutil.strlen(self.curr)==0 then self.curr=id end
 end
 
 
@@ -1102,22 +1238,27 @@ end
 
 if self.device.connected==true
 then 
-self.Term:puts("~G~nDEVICE: " .. self.device.name .. " " .. self.device.addr .. " ~w~eCONNECTED~>~0\n")
+self.Term:puts("~G~nDEVICE: " .. self.device.addr .. " (" .. self.device.name .. ") ~w~eCONNECTED~>~0\n")
 options=options .. "reconnect (disconnect then reconnect),disconnect,"
 else
-self.Term:puts("~B~wDEVICE: " .. self.device.name .. " " .. self.device.addr .. " " .. status .. "~>~0\n")
+self.Term:puts("~B~wDEVICE: " .. self.device.addr .. " (" .. self.device.name .. ") " .. status .. "~>~0\n")
 end
 
 
 if self.device.audio_output == true then options=options .. "bluealsa set device," end
 
+options=options .. "rename device,"
+
+
 --if self.device.paired==true then options=options.."remove" end
 options=options .. "remove" 
 
-self.Term:puts("\n" .. self.device.uuids)
+self.Term:puts("\n~eServices:~0 " .. self.device:get_uuids() .. "\n")
+self.Term:puts("~eDisplay Name:~0 " .. device_names:get(self.device.addr) .. "\n")
 
 return options
 end
+
 
 
 screen.draw=function(self)
@@ -1133,6 +1274,8 @@ options=self:display_dev()
 end
 
 
+self.curr=self.menu:curr()
+
 self.menu:clear()
 toks=strutil.TOKENIZER(options, ",")
 str=toks:next()
@@ -1142,11 +1285,14 @@ self:add_option(str)
 str=toks:next()
 end
 
+if strutil.strlen(self.curr) > 0 then self.menu:setpos(self.curr) end
+
 self.menu:draw()
 end
 
 
 screen.done=function(self)
+  self.curr="back"
   self.ui.state=self.ui.state_mainscreen 
 	self.ui:draw()
 end
@@ -1164,44 +1310,76 @@ end
 
 str=self.menu:onkey(key)
 
-if config.debug == true and strutil.strlen(str) > 0 then io.stderr:write("DeviceScreen: [".. str .."]\n") end
+if strutil.strlen(str) > 0
+then
+   if config.debug == true then io.stderr:write("DeviceScreen: [".. str .."]\n") end
+   
+   if str=="back" then screen:done()
+   elseif str=="remove"
+   then 
+   bt:removedev(self.device)
+   screen:done()
+   elseif str=="pair" then bt:pairdev(self.device)
+   elseif str=="trust" then bt:trustdev(self.device)
+   elseif str=="untrust" then bt:untrustdev(self.device)
+   elseif str=="disconnect" 
+   then 
+   bt:disconnectdev(self.device)
+   self:draw()
+   elseif str=="connect" then 
+   	if self.device.connected ~= true
+   	then
+   		bt:pairdev(self.device)
+   		process.sleep(2)
+   		bt:trustdev(self.device)
+   	end
+   	bt:connectdev(self.device)
+   	self:draw()
+   elseif str=="reconnect" then 
+   	bt:disconnectdev(self.device)
+   	process.sleep(1)
+   	bt:connectdev(self.device)
+   elseif str=="bluealsa" then
+   	bluealsa:use(self.device)
+   	ui:statusbar("~w~MALSA config file '~/.asoundrc' written~>")
+   elseif str=="rename" then
+     device_name_screen:run(self.device)
+   	self.ui:draw()
+   end
 
-if str=="back" then screen:done()
-elseif str=="remove"
-then 
-bt:removedev(self.device)
-screen:done()
-elseif str=="pair" then bt:pairdev(self.device)
-elseif str=="trust" then bt:trustdev(self.device)
-elseif str=="untrust" then bt:untrustdev(self.device)
-elseif str=="disconnect" 
-then 
-bt:disconnectdev(self.device)
-self:draw()
-elseif str=="connect" then 
-	if self.device.connected ~= true
-	then
-		bt:pairdev(self.device)
-		process.sleep(2)
-		bt:trustdev(self.device)
-	end
-	bt:connectdev(self.device)
-	self:draw()
-elseif str=="reconnect" then 
-	bt:disconnectdev(self.device)
-	process.sleep(1)
-	bt:connectdev(self.device)
-elseif str=="bluealsa" then
-	bluealsa:use(self.device)
-	ui:statusbar("~w~MALSA config file '~/.asoundrc' written~>")
+   self.curr="back"
 end
-
 end
 
 return(screen)
+
 end
 
 
+
+device_name_screen={
+
+
+run=function(self, device)
+local Term, str
+
+Term=ui.Term;
+
+Term:clear()
+Term:move(0,0)
+Term:puts("~M~nRename Device "..device.addr.."~>~0\n")
+Term:puts("\n")
+Term:puts("Device 'real name': " .. device.name .. "\n")
+Term:puts("Device 'display name': " .. device_names:get(device.addr) .. "\n\n")
+Term:puts("Enter new name for this device\nOr just enter blank cance\n")
+Term:puts("\n")
+str=Term:prompt("New Name: ")
+
+if strutil.strlen(str) > 0 then device_names:add(device.addr, str) end
+
+end
+
+}
 
 function HelpScreen_Init(ui)
 local screen={}
@@ -1405,7 +1583,9 @@ poll=stream.POLL_IO()
 poll:add(Term:get_stream())
 poll:add(bt.S)
 
-Term:puts("~R~wBluetooth_mgr 0.1   LOADING DEVICES~>~0\r")
+device_names:load()
+
+Term:puts("~R~wBluetooth_mgr " .. config.version .. "   LOADING DEVICES~>~0\r")
 controllers:poweron()
 
 

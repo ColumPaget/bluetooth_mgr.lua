@@ -3,6 +3,11 @@ devices={}
 function NewDevice(addr, name)
 local dev={}
 
+dev.uuids={}
+dev.trusted=false
+dev.connected=false
+dev.paired=false
+
 if devices[addr] ~= nil then return devices[addr] end
 
 -- functions
@@ -23,9 +28,21 @@ local toks, tok
 
 toks=strutil.TOKENIZER(uuid, "(")
 tok=strutil.trim(toks:next())
-self.uuids=self.uuids .. tok .. ","
+self.uuids[tok]=tok
 end
 
+
+dev.get_uuids=function(self, uuid)
+local str, key, value
+
+str=""
+for key, value in pairs(self.uuids)
+do
+str=str .. key .. ","
+end
+
+return str
+end
 
 
 dev.parse_manufacturer_key=function(self, toks)
@@ -74,12 +91,57 @@ local str
 		self.rssi=str
 end
 
+
+
+
+dev.onpair=function(self)
+    if self.paired == false 
+    then 
+    bt:getdevinfo(self) 
+		self.paired=true
+		ui.redraw_needed=true
+		ui:statusbar("~Y~wPaired to: " .. self.addr .. " " .. self.name)
+    end
+end
+
+
+dev.onconnect=function(self)
+    if self.connected == false
+    then 
+    bt:getdevinfo(self)
+		self.connected=true
+		self.paired=true
+		ui.redraw_needed=true
+		ui:statusbar("~G~wConnected to: " .. self.addr .. " " .. self.name)
+    end
+end
+
+
+dev.ontrust=function(self)
+    if self.trusted == false 
+    then 
+    bt:getdevinfo(self)
+		self.paired=true
+		self.trusted=true
+		ui.redraw_needed=true
+		ui:statusbar("~G~wConnected to: " .. self.addr .. " " .. self.name)
+    end
+end
+
+
+dev.onservices=function(self)
+    bt:getdevinfo(self)
+end
+
+
+
 dev.parse_info=function(self, tok, toks)
 
 	if tok == "Name:" then self:setname(toks:remaining())
-	elseif tok == "Paired:" and toks:next() =="yes" then self.paired=true
-	elseif tok == "Trusted:" and toks:next() =="yes" then self.trusted=true
-	elseif tok == "Connected:" and toks:next() =="yes" then self.connected=true; bt:onconnected(self)
+	elseif tok == "Paired:" and toks:next() =="yes" then self:onpair()
+	elseif tok == "Trusted:" and toks:next() =="yes" then self:ontrust()
+	elseif tok == "Connected:" and toks:next() =="yes" then self:onconnect()
+	elseif tok == "ServicesResolved:" and toks:next() =="yes" then self:onservices()
 	elseif tok == "Icon:" then self.icon=toks:next()
 	elseif tok == "Name:" then self:setname(toks:remaining())
 	elseif tok == "UUID:" then self:add_uuid(toks:remaining())
@@ -108,29 +170,26 @@ local toks, tok
 self.audio_output=false
 self.audio_input=false
 
-toks=strutil.TOKENIZER(self.uuids, ",")
-tok=toks:next()
-while tok ~= nil
+for tok in pairs(self.uuids)
 do
-if tok=="Audio Sink" then self.audio_output=true end
-if tok=="Audio Source" then self.audio_input=true end
-tok=toks:next()
+   if tok=="Audio Sink" then self.audio_output=true end
+   if tok=="Audio Source" then self.audio_input=true end
 end
-
+   
 if self.icon == "audio-card"
 then
-	if self.audio_output ~= true then self.icon = "audio-source"
-	elseif self.audio_input ~= true then self.icon = "audio-output"
-	end
+ 	if self.audio_output ~= true then self.icon = "audio-source"
+ 	elseif self.audio_input ~= true then self.icon = "audio-output"
+ 	end
 end
 
 end
+
 
 --end functions
 
 dev.addr=addr
 dev:setname(name)
-dev.uuids=""
 devices[addr]=dev
 
 return dev

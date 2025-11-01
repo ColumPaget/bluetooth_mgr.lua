@@ -3,9 +3,10 @@ require("strutil")
 require("terminal")
 require("time")
 require("process")
+require("filesys")
 
 config={}
-config.version="1.8"
+config.version="2.0"
 config.show_beacons=false
 
 function make_sorted(input, cmp_func)
